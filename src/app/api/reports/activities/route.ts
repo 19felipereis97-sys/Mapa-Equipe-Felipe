@@ -304,18 +304,18 @@ export async function GET(req: NextRequest) {
 
     let pageNum = 0;
 
-    function newPage(): number {
+    const newPage = (): number => {
       pageNum++;
       doc.addPage({ size: 'A4', margins: { top: 0, left: 0, right: 0, bottom: 0 } });
       drawHeaderBand(doc, month, year, pageNum);
       drawFooter(doc);
       return Y0;
-    }
+    };
 
-    function checkPage(y: number, neededH: number): number {
+    const checkPage = (y: number, neededH: number): number => {
       if (y + neededH > PH - 40) return newPage();
       return y;
-    }
+    };
 
     // ── PAGE 1 ────────────────────────────────────────────────────────────────
     let y = newPage();
