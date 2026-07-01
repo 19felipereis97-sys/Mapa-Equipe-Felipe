@@ -1,0 +1,327 @@
+// Prisma schema - Mapa da Equipe
+// Module 4: Atividades em Grade — adds ActivityStatus with obligationId relation and ActivityStatusHistory
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model SystemConfig {
+  id        Int      @id @default(autoincrement())
+  key       String   @unique
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("system_config")
+}
+
+model Team {
+  id            Int            @id @default(autoincrement())
+  name          String
+  active        Boolean        @default(true)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  professionals Professional[]
+  cellCompanies Company[]      @relation("CompanyCellTeam")
+
+  @@map("teams")
+}
+
+model Professional {
+  id        Int      @id @default(autoincrement())
+  name      String
+  teamId    Int?
+  email     String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  team      Team?    @relation(fields: [teamId], references: [id])
+
+  companiesFinancial Company[] @relation("CompanyFinancial")
+  companiesDP        Company[] @relation("CompanyDP")
+  companiesFiscal    Company[] @relation("CompanyFiscal")
+  companiesAnalysis  Company[] @relation("CompanyAnalysis")
+  companiesReview    Company[] @relation("CompanyReview")
+  companiesIRRent    Company[] @relation("CompanyIRRent")
+  companiesMIT       Company[] @relation("CompanyMIT")
+
+  activityStatuses         ActivityStatus[]        @relation("ActivityResponsible")
+  activityStatusHistories  ActivityStatusHistory[]  @relation("ActivityHistoryResponsible")
+  leaves                   Leave[]
+
+  @@map("professionals")
+}
+
+model Leave {
+  id             Int          @id @default(autoincrement())
+  professionalId Int
+  professional   Professional @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+  startDate      String       // YYYY-MM-DD
+  endDate        String       // YYYY-MM-DD
+  description    String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@map("leaves")
+}
+
+model MonthlyGoal {
+  id          Int       @id @default(autoincrement())
+  title       String
+  description String?
+  month       Int
+  year        Int
+  completed   Boolean   @default(false)
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@map("monthly_goals")
+}
+
+model DailyGoal {
+  id          Int       @id @default(autoincrement())
+  title       String
+  description String?
+  date        String    // YYYY-MM-DD
+  completed   Boolean   @default(false)
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@map("daily_goals")
+}
+
+model TaxRegime {
+  id                Int                @id @default(autoincrement())
+  name              String
+  color             String?
+  active            Boolean            @default(true)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  companyTaxRegimes CompanyTaxRegime[]
+
+  @@map("tax_regimes")
+}
+
+model Level {
+  id        Int       @id @default(autoincrement())
+  name      String
+  color     String?
+  active    Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  companies Company[]
+
+  @@map("levels")
+}
+
+model Obligation {
+  id        Int       @id @default(autoincrement())
+  code      String    @unique
+  name      String
+  group     String?
+  type      String
+  order     Int       @default(0)
+  isDefault Boolean   @default(false)
+  active    Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deadline  Deadline?
+
+  activityStatuses        ActivityStatus[]
+  activityStatusHistories ActivityStatusHistory[]
+
+  @@map("obligations")
+}
+
+model Deadline {
+  id           Int        @id @default(autoincrement())
+  obligationId Int        @unique
+  startDay     Int?
+  dueDay       Int
+  active       Boolean    @default(true)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  obligation   Obligation @relation(fields: [obligationId], references: [id])
+
+  @@map("deadlines")
+}
+
+model AccountingYear {
+  id                Int                @id @default(autoincrement())
+  year              Int                @unique
+  active            Boolean            @default(false)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  companyTaxRegimes CompanyTaxRegime[]
+
+  @@map("accounting_years")
+}
+
+model Company {
+  id                     Int      @id @default(autoincrement())
+  code                   String?
+  groupName              String?
+  document               String?
+  corporateName          String
+  companyType            String?
+  unit                   String?
+  startCompetence        String?
+  levelId                Int?
+  operationService       Boolean  @default(false)
+  operationCommerce      Boolean  @default(false)
+  operationIndustry      Boolean  @default(false)
+  irRent                 Boolean  @default(false)
+  openingCompany         Boolean  @default(false)
+  openingDate            String?
+  financialResponsibleId Int?
+  dpResponsibleId        Int?
+  fiscalResponsibleId    Int?
+  analysisResponsibleId  Int?
+  reviewResponsibleId    Int?
+  irRentResponsibleId    Int?
+  mitResponsibleId       Int?
+  cellTeamId             Int?
+  cell                   String?
+  terminated             Boolean  @default(false)
+  terminationMonth       String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  level                Level?                @relation(fields: [levelId], references: [id])
+  financialResponsible Professional?         @relation("CompanyFinancial", fields: [financialResponsibleId], references: [id])
+  dpResponsible        Professional?         @relation("CompanyDP", fields: [dpResponsibleId], references: [id])
+  fiscalResponsible    Professional?         @relation("CompanyFiscal", fields: [fiscalResponsibleId], references: [id])
+  analysisResponsible  Professional?         @relation("CompanyAnalysis", fields: [analysisResponsibleId], references: [id])
+  reviewResponsible    Professional?         @relation("CompanyReview", fields: [reviewResponsibleId], references: [id])
+  irRentResponsible    Professional?         @relation("CompanyIRRent", fields: [irRentResponsibleId], references: [id])
+  mitResponsible       Professional?         @relation("CompanyMIT", fields: [mitResponsibleId], references: [id])
+  cellTeam             Team?                 @relation("CompanyCellTeam", fields: [cellTeamId], references: [id], onDelete: SetNull)
+  taxRegimes           CompanyTaxRegime[]
+  activityStatuses     ActivityStatus[]
+  activityStatusHistories ActivityStatusHistory[]
+  closingNotes         ClosingNote[]
+  reminders            Reminder[]
+  portalNotifications  PortalNotification[]
+
+  @@index([terminated])
+  @@map("companies")
+}
+
+model ClosingNote {
+  id        Int      @id @default(autoincrement())
+  companyId Int?
+  title     String
+  content   String
+  pinned    Boolean  @default(false)
+  archived  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+
+  @@map("closing_notes")
+}
+
+model Reminder {
+  id          Int       @id @default(autoincrement())
+  companyId   Int?
+  text        String
+  remindAt    DateTime?
+  completed   Boolean   @default(false)
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  company Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+
+  @@map("reminders")
+}
+
+// month: 0 = annual (SPED ECD/ECF), 1-12 = monthly
+model ActivityStatus {
+  id            Int       @id @default(autoincrement())
+  companyId     Int
+  obligationId  Int
+  year          Int
+  month         Int
+  status        String
+  observation   String?
+  responsibleId Int?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  company     Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  obligation  Obligation    @relation(fields: [obligationId], references: [id])
+  responsible Professional? @relation("ActivityResponsible", fields: [responsibleId], references: [id])
+
+  @@unique([companyId, obligationId, year, month])
+  @@index([obligationId, year, month])
+  @@index([companyId, year])
+  @@map("activity_statuses")
+}
+
+// Immutable audit trail — never updated, only inserted
+model ActivityStatusHistory {
+  id             Int      @id @default(autoincrement())
+  companyId      Int
+  obligationId   Int
+  year           Int
+  month          Int
+  previousStatus String?
+  newStatus      String?
+  observation    String?
+  responsibleId  Int?
+  createdAt      DateTime @default(now())
+
+  company     Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  obligation  Obligation    @relation(fields: [obligationId], references: [id])
+  responsible Professional? @relation("ActivityHistoryResponsible", fields: [responsibleId], references: [id])
+
+  @@map("activity_status_history")
+}
+
+model PortalNotification {
+  id               Int       @id @default(autoincrement())
+  companyId        Int
+  cnpj             String
+  companyName      String
+  notificationDate String
+  subject          String
+  urgency          String    @default("normal")
+  batchName        String
+  completed        Boolean   @default(false)
+  completedAt      DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([completed])
+  @@map("portal_notifications")
+}
+
+model CompanyTaxRegime {
+  id               Int            @id @default(autoincrement())
+  companyId        Int
+  accountingYearId Int
+  taxRegimeId      Int
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  company        Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  accountingYear AccountingYear @relation(fields: [accountingYearId], references: [id])
+  taxRegime      TaxRegime      @relation(fields: [taxRegimeId], references: [id])
+
+  @@unique([companyId, accountingYearId])
+  @@index([companyId])
+  @@map("company_tax_regimes")
+}

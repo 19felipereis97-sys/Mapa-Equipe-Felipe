@@ -1,0 +1,18 @@
+version: '3.9'
+
+# Mapa da Equipe — Docker Compose (optional)
+# The project runs without Docker. See README.md.
+# IMPORTANT: Bind to localhost only — do not expose to the internet.
+
+services:
+  app:
+    build: .
+    ports:
+      - "127.0.0.1:3000:3000"   # Bound to localhost only — not public
+    volumes:
+      - ./data:/app/data        # Persist SQLite database outside container
+    environment:
+      - DATABASE_URL=file:/app/data/mapa-equipe.db
+      - NODE_ENV=production
+      - NEXT_TELEMETRY_DISABLED=1
+    restart: unless-stopped
