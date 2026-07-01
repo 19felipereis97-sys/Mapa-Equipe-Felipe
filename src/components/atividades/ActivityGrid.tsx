@@ -179,20 +179,25 @@ function CompanyRow({
   // Quick history tooltip
   const [tooltip, setTooltip] = useState<{ entries: HistoryEntry[]; rect: DOMRect } | null>(null);
   const tooltipTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isHoveringRef = useRef(false);
 
   function handleCellMouseEnter(month: number, status: ActivityStatus | undefined, rect: DOMRect) {
     if (!status) return;
+    isHoveringRef.current = true;
     tooltipTimer.current = setTimeout(async () => {
       try {
         const res  = await fetch(`/api/activities/history?companyId=${company.companyId}&year=${status.year}&month=${month}&limit=3`);
         const json = await res.json();
         const items: HistoryEntry[] = json.data?.items ?? json.data ?? [];
-        setTooltip({ entries: items, rect });
+        // O mouse pode ter saído da célula enquanto a requisição estava em andamento —
+        // só exibe o tooltip se ainda estiver sobre a célula, senão ele fica preso na tela.
+        if (isHoveringRef.current) setTooltip({ entries: items, rect });
       } catch { /* ignore */ }
     }, 450);
   }
 
   function handleCellMouseLeave() {
+    isHoveringRef.current = false;
     if (tooltipTimer.current) clearTimeout(tooltipTimer.current);
     setTooltip(null);
   }
