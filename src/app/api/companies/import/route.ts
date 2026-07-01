@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import ExcelJS from 'exceljs';
 import prisma from '@/lib/prisma';
-import { createCompany } from '@/services/companyService';
+import { createCompany, updateCompany } from '@/services/companyService';
 
 function parseBool(v: unknown): boolean {
   if (typeof v === 'boolean') return v;
@@ -76,7 +76,7 @@ export async function POST(req: NextRequest) {
     const taxMap   = new Map(taxRegimesList.map((t) => [t.name.trim().toLowerCase(), t.id]));
     const profMap  = new Map(professionals.map((p) => [p.name.trim().toLowerCase(), p.id]));
 
-    const results: { row: number; status: 'ok' | 'error'; name: string; error?: string; warning?: string }[] = [];
+    const results: { row: number; status: 'ok' | 'error'; name: string; error?: string; warning?: string; action?: 'created' | 'updated' }[] = [];
 
     // Row 1=title, 2=instructions, 3=headers, 4=example (skip if matches)
     for (let r = 4; r <= ws.rowCount; r++) {
@@ -115,6 +115,9 @@ export async function POST(req: NextRequest) {
       const irRentResp     = get(20).toLowerCase();
       const mitResp        = get(21).toLowerCase();
       const cell           = get(22) || null;
+      const openingDate    = get(23) || null;
+      const terminated     = parseBool(get(24));
+      const terminationMonth = get(25) || null;
 
       const levelId              = levelMap.get(levelName) ?? null;
       const financialResponsibleId = profMap.get(financialResp) ?? null;
@@ -134,7 +137,7 @@ export async function POST(req: NextRequest) {
       }
 
       try {
-        await createCompany({
+        const payload = {
           corporateName,
           document,
           code,
@@ -143,6 +146,7 @@ export async function POST(req: NextRequest) {
           unit,
           startCompetence: startComp,
           openingCompany: opening,
+          openingDate,
           levelId,
           operationService:  opService,
           operationCommerce: opCommerce,
@@ -156,20 +160,33 @@ export async function POST(req: NextRequest) {
           irRentResponsibleId,
           mitResponsibleId,
           cell,
+          terminated,
+          terminationMonth,
           taxRegimes,
-        });
+        };
+
+        // Se já existe uma empresa cadastrada com este código, sobrepõe a configuração
+        // existente em vez de criar um cadastro duplicado.
+        const existing = code ? await prisma.company.findFirst({ where: { code }, select: { id: true } }) : null;
+        if (existing) {
+          await updateCompany(existing.id, payload);
+        } else {
+          await createCompany(payload);
+        }
+
         const warning = missing ? 'Início de competência não informado — preencha manualmente no cadastro.' : undefined;
-        results.push({ row: r, status: 'ok', name: corporateName, warning });
+        results.push({ row: r, status: 'ok', name: corporateName, warning, action: existing ? 'updated' : 'created' });
       } catch (e: unknown) {
         results.push({ row: r, status: 'error', name: corporateName, error: e instanceof Error ? e.message : 'Erro desconhecido' });
       }
     }
 
-    const created  = results.filter((r) => r.status === 'ok').length;
+    const created  = results.filter((r) => r.status === 'ok' && r.action === 'created').length;
+    const updated  = results.filter((r) => r.status === 'ok' && r.action === 'updated').length;
     const errors   = results.filter((r) => r.status === 'error').length;
     const warnings = results.filter((r) => r.status === 'ok' && r.warning).length;
 
-    return NextResponse.json({ data: { created, errors, warnings, results }, success: true });
+    return NextResponse.json({ data: { created, updated, errors, warnings, results }, success: true });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : 'Erro ao processar planilha';
     return NextResponse.json({ error: msg, success: false }, { status: 500 });

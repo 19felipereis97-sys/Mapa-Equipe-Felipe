@@ -6,6 +6,7 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { LoadingState } from '@/components/ui/LoadingState';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { useToast } from '@/components/ui/Toast';
 import { useAppContext } from '@/context/AppContext';
 import { CompanyDrawer } from '@/components/empresas/CompanyDrawer';
@@ -119,13 +120,13 @@ function OperacaoCell({ c }: { c: Company }) {
 }
 
 /* ─── Import modal ─── */
-interface ImportResult { row: number; status: 'ok' | 'error'; name: string; error?: string; warning?: string }
+interface ImportResult { row: number; status: 'ok' | 'error'; name: string; error?: string; warning?: string; action?: 'created' | 'updated' }
 
 function ImportModal({ open, onClose, onImported }: { open: boolean; onClose: () => void; onImported: () => void }) {
   const [file, setFile]       = useState<File | null>(null);
   const [busy, setBusy]       = useState(false);
   const [results, setResults] = useState<ImportResult[] | null>(null);
-  const [summary, setSummary] = useState<{ created: number; errors: number; warnings: number } | null>(null);
+  const [summary, setSummary] = useState<{ created: number; updated: number; errors: number; warnings: number } | null>(null);
   const { addToast }          = useToast();
 
   useEffect(() => { if (!open) { setFile(null); setResults(null); setSummary(null); } }, [open]);
@@ -152,9 +153,14 @@ function ImportModal({ open, onClose, onImported }: { open: boolean; onClose: ()
       const res  = await fetch('/api/companies/import', { method: 'POST', body: fd });
       const json = await res.json();
       if (!json.success) throw new Error(json.error);
-      setSummary({ created: json.data.created, errors: json.data.errors, warnings: json.data.warnings ?? 0 });
+      setSummary({
+        created: json.data.created,
+        updated: json.data.updated ?? 0,
+        errors: json.data.errors,
+        warnings: json.data.warnings ?? 0,
+      });
       setResults(json.data.results);
-      if (json.data.created > 0) onImported();
+      if (json.data.created > 0 || json.data.updated > 0) onImported();
     } catch (e: unknown) {
       addToast({ type: 'error', message: e instanceof Error ? e.message : 'Erro na importação' });
     } finally { setBusy(false); }
@@ -209,6 +215,11 @@ function ImportModal({ open, onClose, onImported }: { open: boolean; onClose: ()
                 <span style={{ background: 'rgba(16,185,129,0.12)', color: 'var(--color-success)', borderRadius: 'var(--radius-sm)', padding: '4px 12px', fontWeight: 700, fontSize: 'var(--font-size-sm)' }}>
                   ✓ {summary.created} empresa{summary.created !== 1 ? 's' : ''} criada{summary.created !== 1 ? 's' : ''}
                 </span>
+                {summary.updated > 0 && (
+                  <span style={{ background: 'rgba(37,99,235,0.1)', color: 'var(--color-primary)', borderRadius: 'var(--radius-sm)', padding: '4px 12px', fontWeight: 700, fontSize: 'var(--font-size-sm)' }}>
+                    ↻ {summary.updated} empresa{summary.updated !== 1 ? 's' : ''} atualizada{summary.updated !== 1 ? 's' : ''} (código já cadastrado)
+                  </span>
+                )}
                 {summary.warnings > 0 && (
                   <span style={{ background: 'rgba(234,88,12,0.1)', color: 'var(--color-warning)', borderRadius: 'var(--radius-sm)', padding: '4px 12px', fontWeight: 700, fontSize: 'var(--font-size-sm)' }}>
                     ⚠ {summary.warnings} alerta{summary.warnings !== 1 ? 's' : ''}
@@ -254,6 +265,10 @@ export default function EmpresasPage() {
   const [selected, setSelected] = useState<Company | null>(null);
   const [importOpen, setImportOpen] = useState(false);
 
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+
   const [search, setSearch]         = useState('');
   const [filterGroup, setFilterGroup] = useState('');
   const [filterTax, setFilterTax]   = useState('');
@@ -277,6 +292,15 @@ export default function EmpresasPage() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    setSelectedIds((prev) => {
+      if (prev.size === 0) return prev;
+      const validIds = new Set(companies.map((c) => c.id));
+      const next = new Set(Array.from(prev).filter((id) => validIds.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [companies]);
 
   const groups = useMemo(
     () => Array.from(new Set(companies.map((c) => c.groupName).filter(Boolean) as string[])).sort(),
@@ -329,6 +353,39 @@ export default function EmpresasPage() {
   function handleSaved(saved: Company) { setSelected(saved); load(); }
   function handleDuplicated()          { load(); setDrawerOpen(false); }
   function handleDeleted()             { load(); setDrawerOpen(false); setSelected(null); }
+
+  function toggleSelectRow(id: number) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    setSelectedIds((prev) => (prev.size === filtered.length ? new Set() : new Set(filtered.map((c) => c.id))));
+  }
+
+  async function handleBulkDelete() {
+    setBulkDeleting(true);
+    try {
+      const res = await fetch('/api/companies/bulk-delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: Array.from(selectedIds) }),
+      });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error);
+      addToast({ type: 'success', message: `${selectedIds.size} empresa${selectedIds.size !== 1 ? 's' : ''} excluída${selectedIds.size !== 1 ? 's' : ''} com sucesso` });
+      setSelectedIds(new Set());
+      setBulkDeleteOpen(false);
+      load();
+    } catch (e: unknown) {
+      addToast({ type: 'error', message: e instanceof Error ? e.message : 'Erro ao excluir empresas' });
+    } finally {
+      setBulkDeleting(false);
+    }
+  }
 
   return (
     <div className="page-container">
@@ -386,6 +443,25 @@ export default function EmpresasPage() {
         </div>
       </Card>
 
+      {/* ── Ações em lote ── */}
+      {selectedIds.size > 0 && (
+        <Card style={{ marginBottom: 16, padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' } as React.CSSProperties}>
+          <span style={{ fontSize: 'var(--font-size-sm)', fontWeight: 600 }}>
+            {selectedIds.size} empresa{selectedIds.size !== 1 ? 's' : ''} selecionada{selectedIds.size !== 1 ? 's' : ''}
+          </span>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Button variant="secondary" size="sm" onClick={() => setSelectedIds(new Set())}>Limpar seleção</Button>
+            <Button
+              variant="secondary" size="sm"
+              onClick={() => setBulkDeleteOpen(true)}
+              style={{ color: 'var(--color-danger)', borderColor: 'var(--color-danger)' }}
+            >
+              Excluir selecionadas
+            </Button>
+          </div>
+        </Card>
+      )}
+
       {/* ── Tabela ── */}
       <Card>
         {loading ? (
@@ -404,6 +480,13 @@ export default function EmpresasPage() {
             <table style={{ minWidth: 1940, fontSize: 'var(--font-size-sm)' }}>
               <thead>
                 <tr>
+                  <th style={{ width: 32 }}>
+                    <input
+                      type="checkbox"
+                      checked={filtered.length > 0 && selectedIds.size === filtered.length}
+                      onChange={toggleSelectAll}
+                    />
+                  </th>
                   <th style={{ width: 65 }}>Cód.</th>
                   <th style={{ width: 95 }}>Grupo</th>
                   <th style={{ minWidth: 200 }}>Razão Social</th>
@@ -439,6 +522,15 @@ export default function EmpresasPage() {
 
                   return (
                     <tr key={c.id} style={{ cursor: 'pointer' }} onClick={() => openEdit(c)}>
+
+                      {/* Checkbox */}
+                      <td onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(c.id)}
+                          onChange={() => toggleSelectRow(c.id)}
+                        />
+                      </td>
 
                       {/* Cód */}
                       <td style={{ fontFamily: 'monospace', color: 'var(--text-secondary)' }}>
@@ -526,6 +618,17 @@ export default function EmpresasPage() {
         open={importOpen}
         onClose={() => setImportOpen(false)}
         onImported={load}
+      />
+
+      <ConfirmDialog
+        open={bulkDeleteOpen}
+        onClose={() => setBulkDeleteOpen(false)}
+        onConfirm={handleBulkDelete}
+        title="Excluir empresas selecionadas"
+        message={`Tem certeza que deseja excluir ${selectedIds.size} empresa${selectedIds.size !== 1 ? 's' : ''}? Todo o histórico de atividades será removido permanentemente. Esta ação não pode ser desfeita.`}
+        confirmLabel="Excluir permanentemente"
+        variant="danger"
+        loading={bulkDeleting}
       />
     </div>
   );

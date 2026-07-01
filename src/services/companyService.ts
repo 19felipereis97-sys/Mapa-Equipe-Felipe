@@ -113,6 +113,11 @@ export async function deleteCompany(id: number) {
   invalidateCompanyCache();
 }
 
+export async function deleteCompanies(ids: number[]) {
+  await prisma.company.deleteMany({ where: { id: { in: ids } } });
+  invalidateCompanyCache();
+}
+
 export async function revertTermination(id: number) {
   const result = await updateCompany(id, { terminated: false, terminationMonth: null });
   invalidateCompanyCache();

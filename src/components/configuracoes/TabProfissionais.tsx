@@ -62,11 +62,20 @@ export function TabProfissionais() {
 
   useEffect(() => { load(); }, []);
 
+  async function refreshTeams() {
+    try {
+      const tRes = await fetch('/api/teams');
+      const tJson = await tRes.json();
+      setTeams(tJson.data ?? []);
+    } catch { /* mantém a última lista carregada */ }
+  }
+
   function openAdd() {
     setEditingId(null);
     setForm(EMPTY_FORM);
     setFormErrors({});
     setModalOpen(true);
+    refreshTeams();
   }
 
   function openEdit(p: Professional) {
@@ -74,6 +83,7 @@ export function TabProfissionais() {
     setForm({ name: p.name, teamId: p.teamId ? String(p.teamId) : '', email: p.email ?? '' });
     setFormErrors({});
     setModalOpen(true);
+    refreshTeams();
   }
 
   function closeModal() {

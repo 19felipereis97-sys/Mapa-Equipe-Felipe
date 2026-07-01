@@ -25,6 +25,9 @@ const HEADERS = [
   { key: 'irRentResp',      label: 'Resp. IR Aluguel',                      width: 24 },
   { key: 'mitResp',         label: 'Resp. MIT',                             width: 24 },
   { key: 'cell',            label: 'Célula',                                width: 18 },
+  { key: 'openingDate',      label: 'Data de Abertura (AAAA-MM-DD)',        width: 24 },
+  { key: 'terminated',       label: 'Rescindida (Sim/Não)',                 width: 18 },
+  { key: 'terminationMonth', label: 'Mês de Rescisão (MM/AAAA)',            width: 20 },
 ];
 
 // Column indices (1-based) for data validation
@@ -33,7 +36,7 @@ const COL = {
   nivel:       8,
   tribAtual:   9,
   tribAnterior:10,
-  simNao:      [11, 12, 13, 14] as number[],
+  simNao:      [11, 12, 13, 14, 24] as number[],
   resps:       [15, 16, 17, 18, 19, 20, 21] as number[],
   celula:      22,
 };
@@ -78,7 +81,7 @@ export async function GET() {
     // Instructions row
     ws.mergeCells(`A2:${lastCol}2`);
     const instrCell = ws.getCell('A2');
-    instrCell.value = '* Campo obrigatório. Início Competência: use o formato NomeMes_Ano (ex: Janeiro_2022) ou NomeMes_Ano (Abertura) para empresas de abertura (ex: Outubro_2024 (Abertura)). Deixar em branco gera alerta para preenchimento posterior. Use listas suspensas ou nomes exatos da aba "Referência". A linha 4 é exemplo — apague-a antes de importar.';
+    instrCell.value = '* Campo obrigatório. Início Competência: use o formato NomeMes_Ano (ex: Janeiro_2022) ou NomeMes_Ano (Abertura) para empresas de abertura (ex: Outubro_2024 (Abertura)). Deixar em branco gera alerta para preenchimento posterior. Data de Abertura no formato AAAA-MM-DD. Se Rescindida = Sim, informe o Mês de Rescisão no formato MM/AAAA. Se o Código já existir em uma empresa cadastrada, a importação sobrepõe a configuração existente em vez de criar uma nova. Use listas suspensas ou nomes exatos da aba "Referência". A linha 4 é exemplo — apague-a antes de importar.';
     instrCell.font = { size: 9, italic: true, color: { argb: 'FF6B7280' } };
     ws.getRow(2).height = 16;
 
@@ -115,6 +118,7 @@ export async function GET() {
       'Não', 'Sim', 'Não', 'Não',
       professionals[0]?.name ?? '', professionals[0]?.name ?? '', professionals[0]?.name ?? '',
       professionals[0]?.name ?? '', professionals[0]?.name ?? '', '', '', '',
+      '', 'Não', '',
     ];
     exVals.forEach((v, i) => {
       const cell = exRow.getCell(i + 1);
