@@ -1,10 +1,22 @@
 import prisma from '@/lib/prisma';
 
-/* ─── Obligation code → ID resolution ─── */
+/* ─── Obligation code → ID resolution ─────────────────────────────────────────
+   Cached in-memory: obligations are static reference data (11 rows, managed
+   via seed), so resolving the code on every single request/click was adding
+   an avoidable extra round-trip to the remote Postgres instance on top of the
+   actual query, making tab switches and status edits feel slow.
+──────────────────────────────────────────────────────────────────────────── */
+const OBLIGATION_ID_CACHE_TTL = 10 * 60 * 1000; // 10 minutes
+let obligationIdCache: { map: Map<string, number>; expiresAt: number } | null = null;
+
 async function resolveObligationId(code: string): Promise<number> {
-  const obl = await prisma.obligation.findUnique({ where: { code } });
-  if (!obl) throw new Error(`Obrigação '${code}' não encontrada. Verifique se as obrigações estão cadastradas em Configurações.`);
-  return obl.id;
+  if (!obligationIdCache || obligationIdCache.expiresAt <= Date.now()) {
+    const all = await prisma.obligation.findMany({ select: { id: true, code: true } });
+    obligationIdCache = { map: new Map(all.map((o) => [o.code, o.id])), expiresAt: Date.now() + OBLIGATION_ID_CACHE_TTL };
+  }
+  const id = obligationIdCache.map.get(code);
+  if (id === undefined) throw new Error(`Obrigação '${code}' não encontrada. Verifique se as obrigações estão cadastradas em Configurações.`);
+  return id;
 }
 
 /* ─── List all statuses for a company + year (used for rescission validation) ─── */

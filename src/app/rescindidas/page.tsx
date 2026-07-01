@@ -231,6 +231,7 @@ export default function RescindadasPage() {
   const [search, setSearch]             = useState('');
   const [filterResp, setFilterResp]     = useState('');
   const [selected, setSelected]         = useState<Set<number>>(new Set());
+  const [bulkMonth, setBulkMonth]       = useState(currentMonth);
 
   // Status selector
   const [selectorInfo, setSelectorInfo] = useState<CellClickInfo | null>(null);
@@ -344,11 +345,11 @@ export default function RescindadasPage() {
     ));
   }, [terminatedCompanies, companySearch]);
 
-  /* ─── Selection (only eligible months of current month) ─── */
+  /* ─── Selection (only companies eligible in the chosen bulk month) ─── */
   const eligibleIds = useMemo(() => filtered.filter((r) => {
-    const monthInfo = r.months[currentMonth - 1];
+    const monthInfo = r.months[bulkMonth - 1];
     return monthInfo?.eligible;
-  }).map((r) => r.companyId), [filtered, currentMonth]);
+  }).map((r) => r.companyId), [filtered, bulkMonth]);
 
   const toggleOne = (id: number) => setSelected((p) => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const toggleAll = () => setSelected(eligibleIds.every((id) => selected.has(id)) ? new Set() : new Set(eligibleIds));
@@ -441,13 +442,13 @@ export default function RescindadasPage() {
     setBulkObsStatus(null);
     const targetIds = Array.from(selected).filter((id) => {
       const r = results.find((x) => x.companyId === id);
-      return r?.months[currentMonth - 1]?.eligible;
+      return r?.months[bulkMonth - 1]?.eligible;
     });
     if (targetIds.length === 0) return;
 
     const items = targetIds.map((id) => {
       const r = results.find((x) => x.companyId === id)!;
-      return { companyId: id, obligationCode: obligation, year: Number(year), month: currentMonth, status, observation, responsibleId: r.responsible?.id ?? null };
+      return { companyId: id, obligationCode: obligation, year: Number(year), month: bulkMonth, status, observation, responsibleId: r.responsible?.id ?? null };
     });
     for (const item of items) applyOptimistic(item.companyId, item.month, item.status, item.observation, item.responsibleId);
 
@@ -470,9 +471,9 @@ export default function RescindadasPage() {
   async function handleBulkClear() {
     const targetIds = Array.from(selected).filter((id) => {
       const r = results.find((x) => x.companyId === id);
-      return r?.months[currentMonth - 1]?.eligible;
+      return r?.months[bulkMonth - 1]?.eligible;
     });
-    const items = targetIds.filter((id) => statusMap.get(id)?.get(currentMonth)).map((id) => ({ companyId: id, obligationCode: obligation, year: Number(year), month: currentMonth }));
+    const items = targetIds.filter((id) => statusMap.get(id)?.get(bulkMonth)).map((id) => ({ companyId: id, obligationCode: obligation, year: Number(year), month: bulkMonth }));
     if (items.length === 0) { setSelected(new Set()); return; }
 
     for (const item of items) {
@@ -716,7 +717,8 @@ export default function RescindadasPage() {
         <div className="no-print">
           <BulkActionBar
             count={selected.size}
-            currentMonth={currentMonth}
+            month={bulkMonth}
+            onMonthChange={setBulkMonth}
             availableStatuses={availableStatuses}
             onApply={handleBulkApply}
             onClear={handleBulkClear}
@@ -730,7 +732,7 @@ export default function RescindadasPage() {
 
         {/* Tabs */}
         <div className="no-print" style={{ padding: '0 14px' }}>
-          <ObligationTabs active={obligation} onChange={(code) => { setObligation(code); setSelected(new Set()); setSearch(''); setFilterResp(''); }} />
+          <ObligationTabs active={obligation} onChange={(code) => { setObligation(code); setSelected(new Set()); setBulkMonth(currentMonth); setSearch(''); setFilterResp(''); }} />
         </div>
         {updating && (
           <div style={{ height: 2, background: 'var(--color-primary)', opacity: 0.45 }} />

@@ -165,6 +165,7 @@ export default function AtividadesPage() {
   const [filterLevel, setFilterLevel]         = useState('');
   const [filterTax, setFilterTax]             = useState('');
   const [selected, setSelected]               = useState<Set<number>>(new Set());
+  const [bulkMonth, setBulkMonth]             = useState(currentMonth);
 
   // Status selector
   const [selectorInfo, setSelectorInfo]       = useState<CellClickInfo | null>(null);
@@ -372,7 +373,7 @@ export default function AtividadesPage() {
   const hasFilters = !!(search || filterResp || filterGroup || filterType || filterLevel || filterTax);
 
   /* ─── Selection ─── */
-  const eligibleIds = useMemo(() => filtered.filter((r) => r.months[currentMonth - 1]?.eligible).map((r) => r.companyId), [filtered, currentMonth]);
+  const eligibleIds = useMemo(() => filtered.filter((r) => r.months[bulkMonth - 1]?.eligible).map((r) => r.companyId), [filtered, bulkMonth]);
   const toggleOne   = (id: number) => setSelected((p) => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const toggleAll   = () => setSelected(eligibleIds.every((id) => selected.has(id)) ? new Set() : new Set(eligibleIds));
 
@@ -549,13 +550,13 @@ export default function AtividadesPage() {
     setBulkObsStatus(null);
     const targetIds = Array.from(selected).filter((id) => {
       const r = results.find((x) => x.companyId === id);
-      return r?.months[currentMonth - 1]?.eligible;
+      return r?.months[bulkMonth - 1]?.eligible;
     });
     if (targetIds.length === 0) return;
 
     const items = targetIds.map((id) => {
       const r = results.find((x) => x.companyId === id)!;
-      return { companyId: id, obligationCode: obligation, year: Number(year), month: currentMonth, status, observation, responsibleId: r.responsible?.id ?? null };
+      return { companyId: id, obligationCode: obligation, year: Number(year), month: bulkMonth, status, observation, responsibleId: r.responsible?.id ?? null };
     });
     // Optimistic
     for (const item of items) applyOptimistic(item.companyId, item.month, item.status, item.observation, item.responsibleId);
@@ -579,9 +580,9 @@ export default function AtividadesPage() {
   async function handleBulkClear() {
     const targetIds = Array.from(selected).filter((id) => {
       const r = results.find((x) => x.companyId === id);
-      return r?.months[currentMonth - 1]?.eligible;
+      return r?.months[bulkMonth - 1]?.eligible;
     });
-    const items = targetIds.filter((id) => statusMap.get(id)?.get(currentMonth)).map((id) => ({ companyId: id, obligationCode: obligation, year: Number(year), month: currentMonth }));
+    const items = targetIds.filter((id) => statusMap.get(id)?.get(bulkMonth)).map((id) => ({ companyId: id, obligationCode: obligation, year: Number(year), month: bulkMonth }));
     if (items.length === 0) { setSelected(new Set()); return; }
 
     for (const item of items) {
@@ -682,7 +683,8 @@ export default function AtividadesPage() {
         <div className="no-print">
           <BulkActionBar
             count={selected.size}
-            currentMonth={currentMonth}
+            month={bulkMonth}
+            onMonthChange={setBulkMonth}
             availableStatuses={availableStatuses}
             onApply={handleBulkApply}
             onClear={handleBulkClear}
@@ -696,7 +698,7 @@ export default function AtividadesPage() {
 
         {/* Tabs */}
         <div className="no-print" style={{ padding: '0 14px' }}>
-          <ObligationTabs active={obligation} onChange={(code) => { setObligation(code); setSelected(new Set()); setSearch(''); setFilterResp(''); setFilterGroup(''); setFilterType(''); setFilterLevel(''); setFilterTax(''); }} />
+          <ObligationTabs active={obligation} onChange={(code) => { setObligation(code); setSelected(new Set()); setBulkMonth(currentMonth); setSearch(''); setFilterResp(''); setFilterGroup(''); setFilterType(''); setFilterLevel(''); setFilterTax(''); }} />
         </div>
         {updating && (
           <div style={{ height: 2, background: 'var(--color-primary)', opacity: 0.45 }} />

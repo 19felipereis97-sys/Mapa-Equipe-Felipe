@@ -5,7 +5,8 @@ import { STATUS_CFG } from './StatusSelector';
 
 interface BulkActionBarProps {
   count: number;
-  currentMonth: number;
+  month: number;
+  onMonthChange: (month: number) => void;
   availableStatuses: string[];
   onApply: (status: string) => void;
   onClear: () => void;
@@ -13,7 +14,7 @@ interface BulkActionBarProps {
 }
 
 export function BulkActionBar({
-  count, currentMonth, availableStatuses, onApply, onClear, onCancel,
+  count, month, onMonthChange, availableStatuses, onApply, onClear, onCancel,
 }: BulkActionBarProps) {
   const [selectedStatus, setSelectedStatus] = useState('');
 
@@ -35,8 +36,28 @@ export function BulkActionBar({
       </span>
 
       <span style={{ opacity: 0.8 }}>
-        Aplicar em {MONTH_ABBR[currentMonth - 1]}:
+        Aplicar em:
       </span>
+
+      <select
+        value={month}
+        onChange={(e) => onMonthChange(Number(e.target.value))}
+        style={{
+          height: 30, padding: '0 8px',
+          background: 'rgba(255,255,255,0.2)',
+          border: '1px solid rgba(255,255,255,0.4)',
+          borderRadius: 'var(--radius-sm)',
+          color: '#fff', fontSize: 'var(--font-size-sm)',
+          fontFamily: 'var(--font-family)',
+          cursor: 'pointer',
+        }}
+      >
+        {MONTH_ABBR.map((label, i) => (
+          <option key={i + 1} value={i + 1} style={{ background: 'var(--bg-card)', color: 'var(--text-primary)' }}>
+            {label}
+          </option>
+        ))}
+      </select>
 
       <select
         value={selectedStatus}

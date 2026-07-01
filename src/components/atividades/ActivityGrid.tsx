@@ -363,7 +363,19 @@ export function ActivityGrid({
               const progress = monthProgress[i];
               const barColor = progress >= 100 ? 'var(--color-success)' : progress >= 50 ? 'var(--color-warning)' : 'var(--text-placeholder)';
               return (
-                <th key={m} style={{ ...thBase, padding: '7px 4px 5px', textAlign: 'center', background: isCurrent ? 'var(--current-month-bg)' : 'var(--bg-table-header)' }}>
+                <th
+                  key={m}
+                  style={{
+                    ...thBase,
+                    padding: '7px 4px 5px',
+                    textAlign: 'center',
+                    // Camada sólida por baixo do tingimento translúcido — o header é sticky, então um
+                    // background com alpha deixaria as linhas rolando por baixo aparecerem através dele.
+                    background: isCurrent
+                      ? 'linear-gradient(var(--current-month-bg), var(--current-month-bg)), var(--bg-table-header)'
+                      : 'var(--bg-table-header)',
+                  }}
+                >
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
                     <span style={{ color: isCurrent ? 'var(--color-primary)' : undefined }}>{MONTH_ABBR[i]}</span>
                     <div style={{ width: 38, height: 3, background: 'var(--border-color)', borderRadius: 2, overflow: 'hidden' }}>
