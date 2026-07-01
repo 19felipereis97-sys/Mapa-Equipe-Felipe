@@ -388,6 +388,9 @@ export default function RescindadasPage() {
       const json = await res.json();
       if (!json.success) throw new Error(json.error);
       setStatuses((cur) => { const next = cur.filter((s) => !(s.companyId === companyId && s.month === month)); return [...next, json.data]; });
+      // Cotas IRPJ/CSLL: marking Cota Única/Prejuízo (or clearing one) changes which
+      // months are blocked for the following two — re-run eligibility to pick that up.
+      if (obligation === 'cotas_irpj_csll') await doSearch(obligation, year);
     } catch (e: unknown) {
       revertOptimistic(companyId, month, prev);
       addToast({ type: 'error', message: e instanceof Error ? e.message : 'Erro ao salvar status' });
@@ -402,6 +405,7 @@ export default function RescindadasPage() {
       const res = await fetch('/api/activities', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ companyId, obligationCode: obligation, year: Number(year), month }) });
       const json = await res.json();
       if (!json.success) throw new Error(json.error);
+      if (obligation === 'cotas_irpj_csll') await doSearch(obligation, year);
     } catch (e: unknown) {
       setStatuses((cur) => [...cur, prev]);
       addToast({ type: 'error', message: e instanceof Error ? e.message : 'Erro ao limpar status' });
@@ -470,7 +474,8 @@ export default function RescindadasPage() {
       const json = await res.json();
       if (!json.success) throw new Error(json.error);
       addToast({ type: 'success', message: `${json.data.succeeded} status atualizado${json.data.succeeded !== 1 ? 's' : ''}` });
-      await loadStatuses(obligation, year);
+      if (obligation === 'cotas_irpj_csll') await doSearch(obligation, year);
+      else await loadStatuses(obligation, year);
     } catch (e: unknown) {
       for (const item of items) {
         const prev = statusMap.get(item.companyId)?.get(item.month);
@@ -503,10 +508,12 @@ export default function RescindadasPage() {
       const json = await res.json();
       if (!json.success) throw new Error(json.error);
       addToast({ type: 'success', message: `${json.data.succeeded} status removido${json.data.succeeded !== 1 ? 's' : ''}` });
-      await loadStatuses(obligation, year);
+      if (obligation === 'cotas_irpj_csll') await doSearch(obligation, year);
+      else await loadStatuses(obligation, year);
     } catch (e: unknown) {
       addToast({ type: 'error', message: e instanceof Error ? e.message : 'Erro ao limpar em lote' });
-      await loadStatuses(obligation, year);
+      if (obligation === 'cotas_irpj_csll') await doSearch(obligation, year);
+      else await loadStatuses(obligation, year);
     }
     setSelected(new Set());
   }
