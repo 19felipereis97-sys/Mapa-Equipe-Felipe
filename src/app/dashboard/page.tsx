@@ -168,37 +168,37 @@ function ProgressCard({ data, month, year }: { data: ObligationProgress[]; month
 }
 
 /* ─── Alertas de atraso ─── */
-function AlertsCard({ data, year }: { data: DelayAlert[]; year: string }) {
+function AlertsCard({
+  data, year, month, monthLabel,
+}: { data: DelayAlert[]; year: string; month: number | null; monthLabel: string | null }) {
   const router = useRouter();
   return (
     <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
       <div style={{ padding: '14px 18px 10px', borderBottom: '1px solid var(--border-color)' }}>
-        <p style={{ fontSize: 'var(--font-size-sm)', fontWeight: 700, color: 'var(--text-primary)' }}>Alertas de atraso</p>
+        <p style={{ fontSize: 'var(--font-size-sm)', fontWeight: 700, color: 'var(--text-primary)' }}>
+          Alertas de atraso
+          {monthLabel && <span style={{ fontWeight: 400, color: 'var(--text-secondary)' }}> — {monthLabel}/{year}</span>}
+        </p>
       </div>
       {data.length === 0 ? (
         <div style={{ padding: '24px 18px', textAlign: 'center', fontSize: 'var(--font-size-sm)', color: 'var(--color-success)' }}>
-          Nenhum atraso em meses anteriores.
+          {monthLabel ? `Nenhum atraso em ${monthLabel}/${year}.` : 'Nenhum atraso em meses anteriores.'}
         </div>
       ) : (
         <div>
-          {data.map((alert, i) => (
+          {data.map((alert) => (
             <div
-              key={i}
-              onClick={() => router.push(`/atividades?tipo=${alert.code}&ano=${year}&mes=${alert.month}`)}
-              style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 18px', borderBottom: '1px solid var(--border-color)', flexWrap: 'wrap', cursor: 'pointer', transition: 'background var(--transition-fast)' }}
+              key={alert.code}
+              title={`${alert.pendingCount} de ${alert.totalEligible} empresas elegíveis`}
+              onClick={() => router.push(`/atividades?tipo=${alert.code}&ano=${year}&mes=${month ?? 1}`)}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '9px 18px', borderBottom: '1px solid var(--border-color)', cursor: 'pointer', transition: 'background var(--transition-fast)' }}
               onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.background = 'var(--bg-hover)'; }}
               onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.background = ''; }}
             >
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{alert.name}</p>
-                <p style={{ fontSize: 10, color: 'var(--text-placeholder)', marginTop: 1 }}>{alert.monthLabel}</p>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                <span style={{ fontSize: 10, color: 'var(--text-secondary)' }}>{alert.totalEligible} emp.</span>
-                <span style={{ background: 'var(--status-p-bg)', color: 'var(--status-p-text)', fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 4, whiteSpace: 'nowrap' }}>
-                  {alert.pendingCount} pend.
-                </span>
-              </div>
+              <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', margin: 0 }}>{alert.name}</p>
+              <span style={{ background: 'var(--status-p-bg)', color: 'var(--status-p-text)', fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 4, whiteSpace: 'nowrap', flexShrink: 0 }}>
+                {alert.pendingCount} pend.
+              </span>
             </div>
           ))}
         </div>
@@ -385,7 +385,12 @@ export default function DashboardPage() {
           {/* ── Middle row ── */}
           <div style={{ display: 'grid', gridTemplateColumns: '3fr 2fr', gap: 16 }}>
             <ProgressCard data={data.progressByObligation} month={month} year={year} />
-            <AlertsCard data={data.delayedObligations} year={year} />
+            <AlertsCard
+              data={data.delayedObligations}
+              year={year}
+              month={data.delayedObligationsMonth}
+              monthLabel={data.delayedObligationsMonthLabel}
+            />
           </div>
 
           {/* ── Annual chart ── */}

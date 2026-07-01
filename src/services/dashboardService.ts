@@ -22,11 +22,11 @@ export interface ObligationProgress {
   completionPercent: number;
 }
 
+// One row per obligation — only the single month right before the one selected
+// in the Dashboard filter (not accumulated all the way back to January).
 export interface DelayAlert {
   code: string;
   name: string;
-  month: number;
-  monthLabel: string;
   pendingCount: number;
   totalEligible: number;
 }
@@ -58,6 +58,8 @@ export interface DashboardSummary {
   delayAlertObligationCount: number;
   progressByObligation: ObligationProgress[];
   delayedObligations: DelayAlert[];
+  delayedObligationsMonth: number | null;
+  delayedObligationsMonthLabel: string | null;
   annualCompletion: AnnualPoint[];
   deadlineAlerts: DeadlineAlert[];
 }
@@ -149,37 +151,31 @@ export async function getDashboardSummary(month: number, year: number): Promise<
   const pendingCount   = progressByObligation.reduce((s, o) => s + o.pCount, 0);
   const completionPercent = totalEligible > 0 ? Math.round(completedCount / totalEligible * 100) : 0;
 
-  // 7. Delay alerts — previous months with P/ST-I/ST-C
-  const previousMonths = Array.from({ length: month - 1 }, (_, i) => i + 1);
+  // 7. Delay alerts — one row per obligation, only for the single month right
+  // before the one selected (not accumulated all the way back to January).
+  const prevMonth = month - 1;
   const delayedObligations: DelayAlert[] = [];
 
-  for (const { code, obl, eligible } of motorResults) {
-    if (!obl) continue;
-    const oblMonthMap = statusLookup.get(obl.id) ?? new Map();
-    for (const m of previousMonths) {
-      const inPrevMonth = eligible.filter((c) => c.months[m - 1]?.eligible);
+  if (prevMonth >= 1) {
+    for (const { code, obl, eligible } of motorResults) {
+      if (!obl) continue;
+      const inPrevMonth = eligible.filter((c) => c.months[prevMonth - 1]?.eligible);
       if (inPrevMonth.length === 0) continue;
-      const prevMap = oblMonthMap.get(m) ?? new Map<number, string>();
+      const prevMap = statusLookup.get(obl.id)?.get(prevMonth) ?? new Map<number, string>();
       const pendingCount = inPrevMonth.filter((c) => {
         const s = prevMap.get(c.companyId);
         return s === 'P' || s === 'ST-I' || s === 'ST-C';
       }).length;
       if (pendingCount > 0) {
-        delayedObligations.push({
-          code,
-          name: obl.name,
-          month: m,
-          monthLabel: MONTH_LABELS[m - 1],
-          pendingCount,
-          totalEligible: inPrevMonth.length,
-        });
+        delayedObligations.push({ code, name: obl.name, pendingCount, totalEligible: inPrevMonth.length });
       }
     }
   }
 
   delayedObligations.sort((a, b) => b.pendingCount - a.pendingCount);
-  const top8 = delayedObligations.slice(0, 8);
-  const delayAlertObligationCount = new Set(delayedObligations.map((d) => d.code)).size;
+  const delayAlertObligationCount = delayedObligations.length;
+  const delayedObligationsMonth = prevMonth >= 1 ? prevMonth : null;
+  const delayedObligationsMonthLabel = prevMonth >= 1 ? MONTH_LABELS[prevMonth - 1] : null;
 
   // 8. Annual completion (OK+S/M per month across all monthly obligations)
   const annualCompletion: AnnualPoint[] = MONTH_LABELS.map((label, i) => {
@@ -209,7 +205,9 @@ export async function getDashboardSummary(month: number, year: number): Promise<
     pendingCount,
     delayAlertObligationCount,
     progressByObligation,
-    delayedObligations: top8,
+    delayedObligations,
+    delayedObligationsMonth,
+    delayedObligationsMonthLabel,
     annualCompletion,
     deadlineAlerts,
   };
