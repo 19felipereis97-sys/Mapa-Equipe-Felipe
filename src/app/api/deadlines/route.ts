@@ -29,6 +29,7 @@ export async function POST(req: NextRequest) {
     }
     const data = await svc.createDeadline({
       obligationId: Number(body.obligationId),
+      taxRegimeId: body.taxRegimeId ? Number(body.taxRegimeId) : null,
       startDay,
       dueDay,
     });

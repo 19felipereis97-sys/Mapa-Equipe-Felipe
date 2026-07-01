@@ -33,7 +33,7 @@ export async function getObligations(activeOnly = false) {
   await ensureDefaultObligations();
   return prisma.obligation.findMany({
     where: activeOnly ? { active: true } : undefined,
-    include: { deadline: true },
+    include: { deadlines: true },
     orderBy: { order: 'asc' },
   });
 }

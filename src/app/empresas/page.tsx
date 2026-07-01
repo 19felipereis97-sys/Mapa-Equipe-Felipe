@@ -440,6 +440,11 @@ export default function EmpresasPage() {
           {hasFilters && (
             <Button variant="secondary" size="sm" onClick={clearFilters}>Limpar filtros</Button>
           )}
+          <span style={{ fontSize: 'var(--font-size-sm)', color: 'var(--text-secondary)', marginLeft: 'auto', whiteSpace: 'nowrap' }}>
+            {hasFilters
+              ? `${filtered.length} de ${companies.length} empresa${companies.length !== 1 ? 's' : ''}`
+              : `${companies.length} empresa${companies.length !== 1 ? 's' : ''}`}
+          </span>
         </div>
       </Card>
 

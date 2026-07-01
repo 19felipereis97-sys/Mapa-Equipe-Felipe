@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useToast } from '@/components/ui/Toast';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -10,7 +10,11 @@ import { Card } from '@/components/ui/Card';
 import { Modal } from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
-import type { Deadline, Obligation } from '@/types/entities';
+import type { Deadline, Obligation, TaxRegime } from '@/types/entities';
+
+// Mirrors TAX_SPLIT_OBLIGATION_CODES in src/services/deadlineService.ts — the
+// server re-validates, this only controls which UI shows the tax regime picker.
+const TAX_SPLIT_CODES = ['financeiro', 'analise'];
 
 interface EditForm {
   startDay: string;
@@ -23,10 +27,12 @@ export function TabPrazos() {
 
   const [deadlines, setDeadlines] = useState<Deadline[]>([]);
   const [obligations, setObligations] = useState<Obligation[]>([]);
+  const [taxRegimes, setTaxRegimes] = useState<TaxRegime[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   const [formObligationId, setFormObligationId] = useState('');
+  const [formTaxRegimeId, setFormTaxRegimeId] = useState('');
   const [formStartDay, setFormStartDay] = useState('');
   const [formDueDay, setFormDueDay] = useState('');
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
@@ -41,13 +47,15 @@ export function TabPrazos() {
   async function load() {
     setLoading(true);
     try {
-      const [dRes, oRes] = await Promise.all([
+      const [dRes, oRes, tRes] = await Promise.all([
         fetch('/api/deadlines'),
         fetch('/api/obligations'),
+        fetch('/api/tax-regimes'),
       ]);
-      const [dJson, oJson] = await Promise.all([dRes.json(), oRes.json()]);
+      const [dJson, oJson, tJson] = await Promise.all([dRes.json(), oRes.json(), tRes.json()]);
       setDeadlines(dJson.data ?? []);
       setObligations(oJson.data ?? []);
+      setTaxRegimes(tJson.data ?? []);
     } catch {
       addToast({ type: 'error', message: 'Erro ao carregar prazos' });
     } finally {
@@ -57,12 +65,60 @@ export function TabPrazos() {
 
   useEffect(() => { load(); }, []);
 
-  const deadlineObligationIds = new Set(deadlines.map((d) => d.obligationId));
-  const availableObligations = obligations.filter((o) => o.active && !deadlineObligationIds.has(o.id));
+  const activeTaxRegimes = useMemo(() => taxRegimes.filter((t) => t.active), [taxRegimes]);
+
+  const deadlinesByObligation = useMemo(() => {
+    const m = new Map<number, Deadline[]>();
+    for (const d of deadlines) {
+      if (!m.has(d.obligationId)) m.set(d.obligationId, []);
+      m.get(d.obligationId)!.push(d);
+    }
+    return m;
+  }, [deadlines]);
+
+  // An obligation can still be picked in "Adicionar prazo" if it has no deadline yet,
+  // or — for Financeiro/Análise — if there's still a tax regime (or the general slot)
+  // without a deadline of its own.
+  const availableObligations = useMemo(() => obligations.filter((o) => {
+    if (!o.active) return false;
+    const existing = deadlinesByObligation.get(o.id) ?? [];
+    if (existing.length === 0) return true;
+    if (!TAX_SPLIT_CODES.includes(o.code)) return false;
+    const hasGeneral = existing.some((d) => d.taxRegimeId === null);
+    const usedRegimeIds = new Set(existing.filter((d) => d.taxRegimeId !== null).map((d) => d.taxRegimeId));
+    const remainingRegimes = activeTaxRegimes.filter((t) => !usedRegimeIds.has(t.id));
+    return !hasGeneral || remainingRegimes.length > 0;
+  }), [obligations, deadlinesByObligation, activeTaxRegimes]);
+
+  const selectedObligation = obligations.find((o) => String(o.id) === formObligationId);
+  const supportsTaxSplit = !!selectedObligation && TAX_SPLIT_CODES.includes(selectedObligation.code);
+
+  // 'GERAL' is a sentinel distinct from '' — the Select's own placeholder option
+  // already uses value="", so reusing it here would create two same-value options.
+  const taxRegimeOptionsForForm = useMemo(() => {
+    if (!selectedObligation || !supportsTaxSplit) return [];
+    const existing = deadlinesByObligation.get(selectedObligation.id) ?? [];
+    const hasGeneral = existing.some((d) => d.taxRegimeId === null);
+    const usedRegimeIds = new Set(existing.filter((d) => d.taxRegimeId !== null).map((d) => d.taxRegimeId));
+    const opts: { value: string; label: string }[] = [];
+    if (!hasGeneral) opts.push({ value: 'GERAL', label: 'Geral (todas as tributações)' });
+    for (const t of activeTaxRegimes) {
+      if (!usedRegimeIds.has(t.id)) opts.push({ value: String(t.id), label: t.name });
+    }
+    return opts;
+  }, [selectedObligation, supportsTaxSplit, deadlinesByObligation, activeTaxRegimes]);
+
+  function handleObligationChange(value: string) {
+    setFormObligationId(value);
+    setFormTaxRegimeId('');
+  }
 
   function validateAddForm(): boolean {
     const errors: Record<string, string> = {};
     if (!formObligationId) errors.obligationId = 'Selecione uma obrigação';
+    if (supportsTaxSplit && taxRegimeOptionsForForm.length > 0 && !formTaxRegimeId) {
+      errors.taxRegimeId = 'Selecione uma tributação';
+    }
     if (!formDueDay) errors.dueDay = 'Prazo final é obrigatório';
     const due = Number(formDueDay);
     if (formDueDay && (isNaN(due) || due < 1 || due > 31)) errors.dueDay = 'Deve ser entre 1 e 31';
@@ -83,13 +139,14 @@ export function TabPrazos() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           obligationId: Number(formObligationId),
+          taxRegimeId: supportsTaxSplit && formTaxRegimeId && formTaxRegimeId !== 'GERAL' ? Number(formTaxRegimeId) : null,
           startDay: formStartDay ? Number(formStartDay) : null,
           dueDay: Number(formDueDay),
         }),
       });
       const json = await res.json();
       if (!json.success) throw new Error(json.error);
-      setFormObligationId(''); setFormStartDay(''); setFormDueDay(''); setFormErrors({});
+      setFormObligationId(''); setFormTaxRegimeId(''); setFormStartDay(''); setFormDueDay(''); setFormErrors({});
       await load();
       addToast({ type: 'success', message: 'Prazo adicionado com sucesso' });
     } catch (e: unknown) {
@@ -175,13 +232,19 @@ export function TabPrazos() {
     } finally { setSaving(false); }
   }
 
-  const obligationOptions = availableObligations.map((o) => ({ value: String(o.id), label: o.name }));
+  const obligationOptions = availableObligations.map((o) => ({
+    value: String(o.id),
+    label: TAX_SPLIT_CODES.includes(o.code) ? `${o.name} (permite por tributação)` : o.name,
+  }));
 
   return (
     <>
       <Card>
         <p className="card-subtitle" style={{ marginBottom: 20, lineHeight: 1.6 }}>
-          Configure o dia de início e o prazo final de cada obrigação. O Dashboard cruzará esses prazos com as pendências reais para gerar alertas automáticos.
+          Configure o dia de início e o prazo final de cada obrigação. O Dashboard cruza esses prazos com as
+          pendências reais para gerar alertas automáticos de atraso. Financeiro e Análise podem ter um prazo
+          geral e/ou um prazo específico por tributação — quando a empresa tiver uma tributação com prazo
+          próprio, ele prevalece sobre o geral.
         </p>
 
         {availableObligations.length > 0 ? (
@@ -190,16 +253,28 @@ export function TabPrazos() {
               Adicionar prazo
             </p>
             <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-              <div style={{ flex: '1 1 200px', minWidth: 160 }}>
+              <div style={{ flex: '1 1 220px', minWidth: 180 }}>
                 <Select
                   label="Obrigação"
                   value={formObligationId}
-                  onChange={(e) => setFormObligationId(e.target.value)}
+                  onChange={(e) => handleObligationChange(e.target.value)}
                   options={obligationOptions}
                   placeholder="Selecionar..."
                   error={formErrors.obligationId}
                 />
               </div>
+              {supportsTaxSplit && (
+                <div style={{ flex: '1 1 200px', minWidth: 180 }}>
+                  <Select
+                    label="Tributação"
+                    value={formTaxRegimeId}
+                    onChange={(e) => setFormTaxRegimeId(e.target.value)}
+                    options={taxRegimeOptionsForForm}
+                    placeholder="Selecionar..."
+                    error={formErrors.taxRegimeId}
+                  />
+                </div>
+              )}
               <div style={{ width: 120 }}>
                 <Input
                   label="Início (dia)"
@@ -251,6 +326,7 @@ export function TabPrazos() {
               <thead>
                 <tr>
                   <th>Obrigação</th>
+                  <th style={{ width: 160 }}>Tributação</th>
                   <th style={{ width: 100 }}>Tipo</th>
                   <th style={{ width: 100 }}>Início</th>
                   <th style={{ width: 120 }}>Prazo final</th>
@@ -259,56 +335,68 @@ export function TabPrazos() {
                 </tr>
               </thead>
               <tbody>
-                {deadlines.map((d) => (
-                  <tr key={d.id} style={{ opacity: d.active ? 1 : 0.55 }}>
-                    <td style={{ fontWeight: 500 }}>
-                      {d.obligation?.name}
-                      {d.obligation?.group && (
-                        <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-secondary)', marginLeft: 6 }}>
-                          ({d.obligation.group})
-                        </span>
-                      )}
-                    </td>
-                    <td>
-                      <span className="badge badge-primary" style={{ fontSize: 'var(--font-size-xs)' }}>
-                        {d.obligation?.type}
-                      </span>
-                    </td>
-                    <td style={{ color: 'var(--text-secondary)' }}>
-                      {d.startDay != null ? `Dia ${d.startDay}` : <span style={{ color: 'var(--text-placeholder)' }}>—</span>}
-                    </td>
-                    <td>
-                      <span style={{
-                        fontWeight: 700,
-                        color: 'var(--color-primary)',
-                        fontSize: 'var(--font-size-md)',
-                      }}>
-                        Dia {d.dueDay}
-                      </span>
-                    </td>
-                    <td>
-                      {d.active
-                        ? <span className="badge badge-ok">Ativo</span>
-                        : <span className="badge badge-sti">Inativo</span>}
-                    </td>
-                    <td style={{ textAlign: 'right' }}>
-                      <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
-                        <button className="action-btn" onClick={() => openEdit(d)}>✎ Editar</button>
-                        <button className="action-btn" onClick={() => handleToggle(d)}>
-                          {d.active ? 'Inativar' : 'Ativar'}
-                        </button>
-                        {!d.obligation?.isDefault && (
-                          <button
-                            className="action-btn action-btn-danger"
-                            onClick={() => setDeleteId(d.id)}
-                          >
-                            Excluir
-                          </button>
+                {deadlines.map((d) => {
+                  const canDelete = d.taxRegimeId !== null || !d.obligation?.isDefault;
+                  return (
+                    <tr key={d.id} style={{ opacity: d.active ? 1 : 0.55 }}>
+                      <td style={{ fontWeight: 500 }}>
+                        {d.obligation?.name}
+                        {d.obligation?.group && (
+                          <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-secondary)', marginLeft: 6 }}>
+                            ({d.obligation.group})
+                          </span>
                         )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td>
+                        {d.taxRegimeId === null ? (
+                          <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--text-secondary)' }}>Geral (todas)</span>
+                        ) : (
+                          <span className="badge badge-primary" style={{ fontSize: 'var(--font-size-xs)' }}>
+                            {d.taxRegime?.name ?? '—'}
+                          </span>
+                        )}
+                      </td>
+                      <td>
+                        <span className="badge badge-primary" style={{ fontSize: 'var(--font-size-xs)' }}>
+                          {d.obligation?.type}
+                        </span>
+                      </td>
+                      <td style={{ color: 'var(--text-secondary)' }}>
+                        {d.startDay != null ? `Dia ${d.startDay}` : <span style={{ color: 'var(--text-placeholder)' }}>—</span>}
+                      </td>
+                      <td>
+                        <span style={{
+                          fontWeight: 700,
+                          color: 'var(--color-primary)',
+                          fontSize: 'var(--font-size-md)',
+                        }}>
+                          Dia {d.dueDay}
+                        </span>
+                      </td>
+                      <td>
+                        {d.active
+                          ? <span className="badge badge-ok">Ativo</span>
+                          : <span className="badge badge-sti">Inativo</span>}
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
+                          <button className="action-btn" onClick={() => openEdit(d)}>✎ Editar</button>
+                          <button className="action-btn" onClick={() => handleToggle(d)}>
+                            {d.active ? 'Inativar' : 'Ativar'}
+                          </button>
+                          {canDelete && (
+                            <button
+                              className="action-btn action-btn-danger"
+                              onClick={() => setDeleteId(d.id)}
+                            >
+                              Excluir
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

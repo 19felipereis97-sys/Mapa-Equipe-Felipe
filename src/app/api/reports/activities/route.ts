@@ -266,16 +266,27 @@ export async function GET(req: NextRequest) {
     }
     const MONTH_PT_ABBR = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 
-    /* ── 8. Alertas de prazo ── */
+    /* ── 8. Alertas de prazo ──
+       This report aggregates pending counts per obligation as a whole (not per
+       company), so it can't reflect the Financeiro/Análise per-tax-regime split
+       the Dashboard now supports. Collapse to one deadline per obligation here
+       (preferring the general one) to avoid duplicate/misleading alert rows. */
     const deadlineRows = await prisma.deadline.findMany({
       where: { active: true },
       include: { obligation: { select: { id: true, code: true } } },
     });
+    const deadlineByObligationId = new Map<number, typeof deadlineRows[number]>();
+    for (const dl of deadlineRows) {
+      const current = deadlineByObligationId.get(dl.obligationId);
+      if (!current || (current.taxRegimeId !== null && dl.taxRegimeId === null)) {
+        deadlineByObligationId.set(dl.obligationId, dl);
+      }
+    }
     const today    = new Date();
     const todayDay = today.getDate();
     interface DeadlineAlert { oblName: string; dueDay: number; pendingCount: number; daysUntilDue: number }
     const deadlineAlerts: DeadlineAlert[] = [];
-    for (const dl of deadlineRows) {
+    for (const dl of Array.from(deadlineByObligationId.values())) {
       const obl = oblStats.find((o) => o.code === dl.obligation.code);
       if (!obl) continue;
       const pending = obl.p + obl.sti;

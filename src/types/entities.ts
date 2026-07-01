@@ -73,18 +73,20 @@ export interface Obligation {
   active: boolean;
   createdAt: string;
   updatedAt: string;
-  deadline?: Deadline | null;
+  deadlines?: Deadline[];
 }
 
 export interface Deadline {
   id: number;
   obligationId: number;
+  taxRegimeId: number | null;
   startDay: number | null;
   dueDay: number;
   active: boolean;
   createdAt: string;
   updatedAt: string;
   obligation?: Obligation;
+  taxRegime?: TaxRegime | null;
 }
 
 export interface AccountingYear {

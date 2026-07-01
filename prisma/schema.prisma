@@ -106,6 +106,7 @@ model TaxRegime {
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
   companyTaxRegimes CompanyTaxRegime[]
+  deadlines         Deadline[]
 
   @@map("tax_regimes")
 }
@@ -133,7 +134,7 @@ model Obligation {
   active    Boolean   @default(true)
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
-  deadline  Deadline?
+  deadlines Deadline[]
 
   activityStatuses        ActivityStatus[]
   activityStatusHistories ActivityStatusHistory[]
@@ -141,16 +142,22 @@ model Obligation {
   @@map("obligations")
 }
 
+// Normally one deadline per obligation (taxRegimeId null = applies to every company).
+// Financeiro/Análise may additionally have one deadline per tax regime, which takes
+// precedence over the general one for companies on that regime.
 model Deadline {
   id           Int        @id @default(autoincrement())
-  obligationId Int        @unique
+  obligationId Int
+  taxRegimeId  Int?
   startDay     Int?
   dueDay       Int
   active       Boolean    @default(true)
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
   obligation   Obligation @relation(fields: [obligationId], references: [id])
+  taxRegime    TaxRegime? @relation(fields: [taxRegimeId], references: [id], onDelete: Cascade)
 
+  @@unique([obligationId, taxRegimeId])
   @@map("deadlines")
 }
 

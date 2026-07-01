@@ -93,7 +93,7 @@ function DeadlineAlertsBlock({ alerts, year, month }: { alerts: DeadlineAlert[];
           const sev = SEV[alert.severity];
           return (
             <div
-              key={alert.obligationCode}
+              key={`${alert.obligationCode}-${alert.taxRegimeId ?? 'geral'}`}
               onClick={() => router.push(`/atividades?tipo=${alert.obligationCode}&ano=${year}&mes=${month}`)}
               style={{
                 border: `1px solid ${sev.border}`, background: sev.bg, borderRadius: 'var(--radius-sm)',
@@ -103,7 +103,12 @@ function DeadlineAlertsBlock({ alerts, year, month }: { alerts: DeadlineAlert[];
               onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.opacity = '0.8'; }}
               onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.opacity = '1'; }}
             >
-              <p style={{ fontSize: 13, fontWeight: 700, color: sev.color, marginBottom: 3 }}>{alert.obligationName}</p>
+              <p style={{ fontSize: 13, fontWeight: 700, color: sev.color, marginBottom: 3 }}>
+                {alert.obligationName}
+                {alert.taxRegimeName && (
+                  <span style={{ fontWeight: 400 }}> — {alert.taxRegimeName}</span>
+                )}
+              </p>
               <p style={{ fontSize: 11, color: sev.color, marginBottom: 4 }}>{dueDayText(alert)}</p>
               <p style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
                 {alert.pendingCount} pendência{alert.pendingCount !== 1 ? 's' : ''} em aberto · dia {alert.dueDay}

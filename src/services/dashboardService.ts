@@ -40,6 +40,8 @@ export interface AnnualPoint {
 export interface DeadlineAlert {
   obligationCode: string;
   obligationName: string;
+  taxRegimeId: number | null;
+  taxRegimeName: string | null;  // set when the deadline is regime-specific (Financeiro/Análise)
   dueDay: number;
   pendingCount: number;   // P + ST-I + ST-C
   daysUntilDue: number;   // negative = overdue
@@ -213,33 +215,40 @@ export async function getDashboardSummary(month: number, year: number): Promise<
   };
 }
 
-/* ─── Deadline alerts (always computed for current date) ─── */
+/* ─── Deadline alerts (always computed for current date) ─────────────────────
+   Each obligation normally has one "general" deadline (taxRegimeId = null).
+   Financeiro/Análise may additionally have one deadline per tax regime, which
+   takes precedence over the general one for companies on that regime — so a
+   single obligation can surface more than one alert card (different due days).
+──────────────────────────────────────────────────────────────────────────── */
 async function getDeadlineAlerts(
   motorResults: Array<{ code: string; obl: { id: number; code: string; name: string } | null; eligible: import('@/types/rules').EligibleCompanyResult[] }>,
   statusLookup: Map<number, Map<number, Map<number, string>>>,
 ): Promise<DeadlineAlert[]> {
   const today = new Date();
   const todayDay   = today.getDate();
-  const todayYear  = today.getFullYear();
   // Competência contábil = mês anterior ao calendário
   const calMonth   = today.getMonth(); // 0-indexed
   const todayMonth = calMonth === 0 ? 12 : calMonth;
 
   const deadlines = await prisma.deadline.findMany({
     where: { active: true },
-    include: { obligation: { select: { id: true, code: true, name: true } } },
+    include: {
+      obligation: { select: { id: true, code: true, name: true } },
+      taxRegime: { select: { id: true, name: true } },
+    },
   });
+
+  const deadlinesByObligation = new Map<number, typeof deadlines>();
+  for (const d of deadlines) {
+    if (!deadlinesByObligation.has(d.obligationId)) deadlinesByObligation.set(d.obligationId, []);
+    deadlinesByObligation.get(d.obligationId)!.push(d);
+  }
 
   const alerts: DeadlineAlert[] = [];
 
-  for (const deadline of deadlines) {
-    const { dueDay, obligation } = deadline;
-    const daysUntilDue = dueDay - todayDay;
-
-    // Only alert if expired or within 5 days
-    if (daysUntilDue > 5) continue;
-
-    // Find corresponding motor results for this obligation
+  for (const deadlineGroup of Array.from(deadlinesByObligation.values())) {
+    const { obligation } = deadlineGroup[0];
     const motorEntry = motorResults.find((m) => m.obl?.code === obligation.code);
     if (!motorEntry || !motorEntry.obl) continue;
 
@@ -247,55 +256,47 @@ async function getDeadlineAlerts(
     const inTodayMonth = motorEntry.eligible.filter((c) => c.months[todayMonth - 1]?.eligible);
     if (inTodayMonth.length === 0) continue;
 
-    // Count P + ST-I + ST-C in today's month of today's year
     const statusByCompany = statusLookup.get(motorEntry.obl.id)?.get(todayMonth) ?? new Map<number, string>();
-    const pendingCount = inTodayMonth.filter((c) => {
-      const s = statusByCompany.get(c.companyId);
-      return s === 'P' || s === 'ST-I' || s === 'ST-C';
-    }).length;
 
-    if (pendingCount === 0) continue;
+    const general = deadlineGroup.find((d) => d.taxRegimeId === null) ?? null;
+    const byRegimeId = new Map(deadlineGroup.filter((d) => d.taxRegimeId !== null).map((d) => [d.taxRegimeId as number, d]));
 
-    // Determine severity
-    let severity: DeadlineAlert['severity'];
-    if (daysUntilDue < 0) severity = 'expired';
-    else if (daysUntilDue <= 2) severity = 'urgent';
-    else severity = 'attention';
-
-    // Only include if the obligation is in the current year's scope
-    // (motor already filtered for the year passed to getDashboardSummary,
-    //  but deadline alerts always reference today's month/year)
-    const oblYear = todayYear;
-    if (!motorEntry.eligible.some((c) => c.months[todayMonth - 1]?.eligible)) continue;
-
-    // Check that the motorResults were actually loaded for todayYear
-    // (they might have been loaded for a different year if user selected a different year in dashboard)
-    // We just use the pending count from statusLookup which covers the year passed to getDashboardSummary
-    // This is correct: if user looks at 2025, the deadline alert still applies to today's month/year.
-    // To be safe, we re-query the status for today's month+year if needed:
-    let finalPendingCount = pendingCount;
-    if (oblYear !== todayYear) {
-      // Re-query for today's year
-      const todayYearStatuses = await prisma.activityStatus.findMany({
-        where: { obligationId: motorEntry.obl.id, year: todayYear, month: todayMonth },
-        select: { companyId: true, status: true },
-      });
-      const todayStatusMap = new Map(todayYearStatuses.map((s) => [s.companyId, s.status]));
-      finalPendingCount = inTodayMonth.filter((c) => {
-        const s = todayStatusMap.get(c.companyId);
-        return s === 'P' || s === 'ST-I' || s === 'ST-C';
-      }).length;
-      if (finalPendingCount === 0) continue;
+    // Bucket companies by whichever deadline actually applies to them
+    const buckets = new Map<number, { deadline: typeof deadlineGroup[number]; companies: typeof inTodayMonth }>();
+    for (const c of inTodayMonth) {
+      const regimeId = c.taxRegime?.id ?? null;
+      const applicable = (regimeId !== null ? byRegimeId.get(regimeId) : undefined) ?? general;
+      if (!applicable) continue;
+      if (!buckets.has(applicable.id)) buckets.set(applicable.id, { deadline: applicable, companies: [] });
+      buckets.get(applicable.id)!.companies.push(c);
     }
 
-    alerts.push({
-      obligationCode: obligation.code,
-      obligationName: obligation.name,
-      dueDay,
-      pendingCount: finalPendingCount,
-      daysUntilDue,
-      severity,
-    });
+    for (const { deadline, companies } of Array.from(buckets.values())) {
+      const daysUntilDue = deadline.dueDay - todayDay;
+      if (daysUntilDue > 5) continue; // only alert if expired or within 5 days
+
+      const pendingCount = companies.filter((c) => {
+        const s = statusByCompany.get(c.companyId);
+        return s === 'P' || s === 'ST-I' || s === 'ST-C';
+      }).length;
+      if (pendingCount === 0) continue;
+
+      let severity: DeadlineAlert['severity'];
+      if (daysUntilDue < 0) severity = 'expired';
+      else if (daysUntilDue <= 2) severity = 'urgent';
+      else severity = 'attention';
+
+      alerts.push({
+        obligationCode: obligation.code,
+        obligationName: obligation.name,
+        taxRegimeId: deadline.taxRegimeId,
+        taxRegimeName: deadline.taxRegime?.name ?? null,
+        dueDay: deadline.dueDay,
+        pendingCount,
+        daysUntilDue,
+        severity,
+      });
+    }
   }
 
   return alerts.sort((a, b) => a.daysUntilDue - b.daysUntilDue);
