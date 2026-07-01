@@ -165,7 +165,7 @@ export default function AtividadesPage() {
   const [filterLevel, setFilterLevel]         = useState('');
   const [filterTax, setFilterTax]             = useState('');
   const [selected, setSelected]               = useState<Set<number>>(new Set());
-  const [bulkMonth, setBulkMonth]             = useState(currentMonth);
+  const [bulkMonths, setBulkMonths]           = useState<number[]>([currentMonth]);
 
   // Status selector
   const [selectorInfo, setSelectorInfo]       = useState<CellClickInfo | null>(null);
@@ -373,9 +373,19 @@ export default function AtividadesPage() {
   const hasFilters = !!(search || filterResp || filterGroup || filterType || filterLevel || filterTax);
 
   /* ─── Selection ─── */
-  const eligibleIds = useMemo(() => filtered.filter((r) => r.months[bulkMonth - 1]?.eligible).map((r) => r.companyId), [filtered, bulkMonth]);
+  const eligibleIds = useMemo(
+    () => filtered.filter((r) => bulkMonths.some((m) => r.months[m - 1]?.eligible)).map((r) => r.companyId),
+    [filtered, bulkMonths]
+  );
   const toggleOne   = (id: number) => setSelected((p) => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const toggleAll   = () => setSelected(eligibleIds.every((id) => selected.has(id)) ? new Set() : new Set(eligibleIds));
+
+  function toggleBulkMonth(m: number) {
+    setBulkMonths((prev) => (prev.includes(m) ? prev.filter((x) => x !== m) : [...prev, m].sort((a, b) => a - b)));
+  }
+  function toggleAllBulkMonths() {
+    setBulkMonths((prev) => (prev.length === 12 ? [] : [...MONTHS_1_12]));
+  }
 
   /* ─── Optimistic save helpers ─── */
   function applyOptimistic(companyId: number, month: number, status: string, observation: string | null, responsibleId: number | null) {
@@ -548,16 +558,18 @@ export default function AtividadesPage() {
 
   async function executeBulkSave(status: string, observation: string | null) {
     setBulkObsStatus(null);
-    const targetIds = Array.from(selected).filter((id) => {
+    const items: { companyId: number; obligationCode: string; year: number; month: number; status: string; observation: string | null; responsibleId: number | null }[] = [];
+    for (const id of Array.from(selected)) {
       const r = results.find((x) => x.companyId === id);
-      return r?.months[bulkMonth - 1]?.eligible;
-    });
-    if (targetIds.length === 0) return;
+      if (!r) continue;
+      for (const m of bulkMonths) {
+        if (r.months[m - 1]?.eligible) {
+          items.push({ companyId: id, obligationCode: obligation, year: Number(year), month: m, status, observation, responsibleId: r.responsible?.id ?? null });
+        }
+      }
+    }
+    if (items.length === 0) return;
 
-    const items = targetIds.map((id) => {
-      const r = results.find((x) => x.companyId === id)!;
-      return { companyId: id, obligationCode: obligation, year: Number(year), month: bulkMonth, status, observation, responsibleId: r.responsible?.id ?? null };
-    });
     // Optimistic
     for (const item of items) applyOptimistic(item.companyId, item.month, item.status, item.observation, item.responsibleId);
 
@@ -578,11 +590,16 @@ export default function AtividadesPage() {
   }
 
   async function handleBulkClear() {
-    const targetIds = Array.from(selected).filter((id) => {
+    const items: { companyId: number; obligationCode: string; year: number; month: number }[] = [];
+    for (const id of Array.from(selected)) {
       const r = results.find((x) => x.companyId === id);
-      return r?.months[bulkMonth - 1]?.eligible;
-    });
-    const items = targetIds.filter((id) => statusMap.get(id)?.get(bulkMonth)).map((id) => ({ companyId: id, obligationCode: obligation, year: Number(year), month: bulkMonth }));
+      if (!r) continue;
+      for (const m of bulkMonths) {
+        if (r.months[m - 1]?.eligible && statusMap.get(id)?.get(m)) {
+          items.push({ companyId: id, obligationCode: obligation, year: Number(year), month: m });
+        }
+      }
+    }
     if (items.length === 0) { setSelected(new Set()); return; }
 
     for (const item of items) {
@@ -683,8 +700,9 @@ export default function AtividadesPage() {
         <div className="no-print">
           <BulkActionBar
             count={selected.size}
-            month={bulkMonth}
-            onMonthChange={setBulkMonth}
+            months={bulkMonths}
+            onToggleMonth={toggleBulkMonth}
+            onToggleAllMonths={toggleAllBulkMonths}
             availableStatuses={availableStatuses}
             onApply={handleBulkApply}
             onClear={handleBulkClear}
@@ -698,7 +716,7 @@ export default function AtividadesPage() {
 
         {/* Tabs */}
         <div className="no-print" style={{ padding: '0 14px' }}>
-          <ObligationTabs active={obligation} onChange={(code) => { setObligation(code); setSelected(new Set()); setBulkMonth(currentMonth); setSearch(''); setFilterResp(''); setFilterGroup(''); setFilterType(''); setFilterLevel(''); setFilterTax(''); }} />
+          <ObligationTabs active={obligation} onChange={(code) => { setObligation(code); setSelected(new Set()); setBulkMonths([currentMonth]); setSearch(''); setFilterResp(''); setFilterGroup(''); setFilterType(''); setFilterLevel(''); setFilterTax(''); }} />
         </div>
         {updating && (
           <div style={{ height: 2, background: 'var(--color-primary)', opacity: 0.45 }} />
