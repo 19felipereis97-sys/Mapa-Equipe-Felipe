@@ -3,7 +3,7 @@ export interface MonthInfo {
   label: string;
   eligible: boolean;
   blocked: boolean;
-  blockReason: 'inicio_competencia' | 'rescisao' | null;
+  blockReason: 'inicio_competencia' | 'rescisao' | 'cota_unica_ou_prejuizo' | null;
 }
 
 export interface EligibleCompanyResult {

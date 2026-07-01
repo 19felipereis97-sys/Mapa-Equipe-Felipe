@@ -15,15 +15,18 @@ export const OBLIGATION_LABELS: Record<string, string> = {
   financeiro:     'Financeiro',
   analise:        'Análise',
   revisao:        'Revisão',
+  distribuicao_lucros: 'Distribuição de Lucros',
   ir_aluguel:     'IR Aluguel',
   mit:            'MIT',
+  cotas_irpj_csll: 'Cotas IRPJ/CSLL',
   sped_ecd:       'SPED ECD',
   sped_ecf:       'SPED ECF',
 };
 
 export const ALL_OBLIGATIONS = [
   'dp','fiscal_simples','fiscal_icms','fiscal_servico',
-  'financeiro','analise','revisao','ir_aluguel','mit',
+  'financeiro','analise','revisao','distribuicao_lucros',
+  'ir_aluguel','mit','cotas_irpj_csll',
   'sped_ecd','sped_ecf',
 ];
 
@@ -39,11 +42,13 @@ const ALL_BORDERS: Partial<ExcelJS.Borders> = {
 };
 
 const STATUS_FILLS: Record<string, { fill: string; font: string }> = {
-  'OK':   { fill: 'FFDCFCE7', font: 'FF166534' },
-  'S/M':  { fill: 'FFDBEAFE', font: 'FF1D4ED8' },
-  'P':    { fill: 'FFFEE2E2', font: 'FF991B1B' },
-  'ST-I': { fill: 'FFFFEDD5', font: 'FF9A3412' },
-  'ST-C': { fill: 'FFEDE9FE', font: 'FF5B21B6' },
+  'OK':         { fill: 'FFDCFCE7', font: 'FF166534' },
+  'S/M':        { fill: 'FFDBEAFE', font: 'FF1D4ED8' },
+  'P':          { fill: 'FFFEE2E2', font: 'FF991B1B' },
+  'ST-I':       { fill: 'FFFFEDD5', font: 'FF9A3412' },
+  'ST-C':       { fill: 'FFEDE9FE', font: 'FF5B21B6' },
+  'PREJUIZO':   { fill: 'FFE2E8F0', font: 'FF334155' },
+  'COTA_UNICA': { fill: 'FFCCFBF1', font: 'FF0F766E' },
 };
 
 /* ─── Fetch statuses for an obligation+year ─── */

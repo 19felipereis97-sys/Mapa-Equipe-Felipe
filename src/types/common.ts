@@ -1,6 +1,6 @@
 export type Theme = 'light' | 'dark';
 
-export type Status = 'OK' | 'S/M' | 'P' | 'ST-I' | 'ST-C' | 'ABERTO';
+export type Status = 'OK' | 'S/M' | 'P' | 'ST-I' | 'ST-C' | 'ABERTO' | 'PREJUIZO' | 'COTA_UNICA';
 
 export type DeadlineAlert = 'overdue' | 'urgent' | 'attention' | 'normal';
 

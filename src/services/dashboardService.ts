@@ -4,7 +4,8 @@ import { getEligibleCompaniesForObligation } from '@/services/obligationRulesSer
 /* ─── Monthly obligation codes handled by the Dashboard ─── */
 const MONTHLY_OBL_CODES = [
   'dp', 'fiscal_simples', 'fiscal_icms', 'fiscal_servico',
-  'financeiro', 'analise', 'revisao', 'ir_aluguel', 'mit',
+  'financeiro', 'analise', 'revisao', 'distribuicao_lucros',
+  'ir_aluguel', 'mit', 'cotas_irpj_csll',
 ] as const;
 
 export type MonthlyOblCode = typeof MONTHLY_OBL_CODES[number];
@@ -19,6 +20,8 @@ export interface ObligationProgress {
   pCount: number;
   stiCount: number;
   stcCount: number;
+  prejuizoCount: number;   // Cotas IRPJ/CSLL only
+  cotaUnicaCount: number;  // Cotas IRPJ/CSLL only
   completionPercent: number;
 }
 
@@ -126,7 +129,7 @@ export async function getDashboardSummary(month: number, year: number): Promise<
     if (inMonth.length === 0) continue;
 
     const monthMap = statusLookup.get(obl.id)?.get(month) ?? new Map<number, string>();
-    let okCount = 0, smCount = 0, pCount = 0, stiCount = 0, stcCount = 0;
+    let okCount = 0, smCount = 0, pCount = 0, stiCount = 0, stcCount = 0, prejuizoCount = 0, cotaUnicaCount = 0;
     for (const c of inMonth) {
       const st = monthMap.get(c.companyId);
       if (st === 'OK')   okCount++;
@@ -134,20 +137,24 @@ export async function getDashboardSummary(month: number, year: number): Promise<
       else if (st === 'P')   pCount++;
       else if (st === 'ST-I') stiCount++;
       else if (st === 'ST-C') stcCount++;
+      else if (st === 'PREJUIZO')   prejuizoCount++;
+      else if (st === 'COTA_UNICA') cotaUnicaCount++;
     }
 
     progressByObligation.push({
       code,
       name: obl.name,
       totalEligible: inMonth.length,
-      okCount, smCount, pCount, stiCount, stcCount,
-      completionPercent: Math.round((okCount + smCount) / inMonth.length * 100),
+      okCount, smCount, pCount, stiCount, stcCount, prejuizoCount, cotaUnicaCount,
+      // Prejuízo/Cota Única are terminal states for Cotas IRPJ/CSLL (nothing more to do
+      // for that month), so they count towards completion just like OK/S-M.
+      completionPercent: Math.round((okCount + smCount + prejuizoCount + cotaUnicaCount) / inMonth.length * 100),
     });
   }
 
   // 6. Overall KPIs
   const totalEligible = progressByObligation.reduce((s, o) => s + o.totalEligible, 0);
-  const completedCount = progressByObligation.reduce((s, o) => s + o.okCount + o.smCount, 0);
+  const completedCount = progressByObligation.reduce((s, o) => s + o.okCount + o.smCount + o.prejuizoCount + o.cotaUnicaCount, 0);
   const pendingCount   = progressByObligation.reduce((s, o) => s + o.pCount, 0);
   const completionPercent = totalEligible > 0 ? Math.round(completedCount / totalEligible * 100) : 0;
 
@@ -187,7 +194,7 @@ export async function getDashboardSummary(month: number, year: number): Promise<
       const mMap = statusLookup.get(obl.id)?.get(m) ?? new Map<number, string>();
       count += inM.filter((c) => {
         const st = mMap.get(c.companyId);
-        return st === 'OK' || st === 'S/M';
+        return st === 'OK' || st === 'S/M' || st === 'PREJUIZO' || st === 'COTA_UNICA';
       }).length;
     }
     return { month: m, label, count };

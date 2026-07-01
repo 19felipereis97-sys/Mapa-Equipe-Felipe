@@ -58,6 +58,10 @@
   --status-stc-bg: #EDE9FE;
   --status-aberto-text: #0E7490;
   --status-aberto-bg: #CFFAFE;
+  --status-prejuizo-text: #334155;
+  --status-prejuizo-bg: #E2E8F0;
+  --status-cotaunica-text: #0F766E;
+  --status-cotaunica-bg: #CCFBF1;
 
   /* Deadline alert colors */
   --alert-overdue-text: #DC2626;
@@ -160,6 +164,10 @@
   --status-stc-bg: #2D1B69;
   --status-aberto-text: #67E8F9;
   --status-aberto-bg: #083344;
+  --status-prejuizo-text: #CBD5E1;
+  --status-prejuizo-bg: #334155;
+  --status-cotaunica-text: #5EEAD4;
+  --status-cotaunica-bg: #134E4A;
 
   --alert-overdue-text: #F87171;
   --alert-overdue-bg: #3B1F1F;

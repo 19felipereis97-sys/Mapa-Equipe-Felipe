@@ -52,6 +52,8 @@ const S_COLORS: Record<string, { bg: string; color: string }> = {
   p:   { bg: 'var(--status-p-bg)',   color: 'var(--status-p-text)'   },
   sti: { bg: 'var(--status-sti-bg)', color: 'var(--status-sti-text)' },
   stc: { bg: 'var(--status-stc-bg)', color: 'var(--status-stc-text)' },
+  prejuizo:   { bg: 'var(--status-prejuizo-bg)',  color: 'var(--status-prejuizo-text)'  },
+  cotaunica:  { bg: 'var(--status-cotaunica-bg)', color: 'var(--status-cotaunica-text)' },
 };
 function SBadge({ label, count, variant }: { label: string; count: number; variant: string }) {
   if (count === 0) return null;
@@ -153,6 +155,8 @@ function ProgressCard({ data, month, year }: { data: ObligationProgress[]; month
                 <SBadge label="P"    count={obl.pCount}   variant="p"   />
                 <SBadge label="ST-I" count={obl.stiCount} variant="sti" />
                 <SBadge label="ST-C" count={obl.stcCount} variant="stc" />
+                <SBadge label="Prejuízo"   count={obl.prejuizoCount}  variant="prejuizo"  />
+                <SBadge label="Cota Única" count={obl.cotaUnicaCount} variant="cotaunica" />
                 <span style={{ fontSize: 10, color: 'var(--text-placeholder)', marginLeft: 2 }}>{obl.totalEligible} emp.</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>

@@ -371,6 +371,8 @@ tbody tr:last-child td {
 .badge-sti     { color: var(--status-sti-text); background: var(--status-sti-bg); }
 .badge-stc     { color: var(--status-stc-text); background: var(--status-stc-bg); }
 .badge-aberto  { color: var(--status-aberto-text); background: var(--status-aberto-bg); }
+.badge-prejuizo  { color: var(--status-prejuizo-text);  background: var(--status-prejuizo-bg); }
+.badge-cotaunica { color: var(--status-cotaunica-text); background: var(--status-cotaunica-bg); }
 .badge-primary { color: var(--color-primary);   background: var(--color-primary-soft); }
 .badge-danger  { color: var(--color-danger);    background: var(--color-danger-soft); }
 .badge-neutral { color: var(--text-secondary);  background: var(--bg-hover); border: 1px solid var(--border-color); }

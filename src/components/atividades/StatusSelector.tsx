@@ -9,6 +9,8 @@ export const STATUS_CFG: Record<string, { bg: string; color: string; label: stri
   'ST-I':   { bg: 'var(--status-sti-bg)',    color: 'var(--status-sti-text)',    label: 'ST-I',   needsObs: true  },
   'ST-C':   { bg: 'var(--status-stc-bg)',    color: 'var(--status-stc-text)',    label: 'ST-C',   needsObs: false },
   'ABERTO': { bg: 'var(--status-aberto-bg)', color: 'var(--status-aberto-text)', label: 'Aberto', needsObs: false },
+  'PREJUIZO':   { bg: 'var(--status-prejuizo-bg)',   color: 'var(--status-prejuizo-text)',   label: 'Prejuízo',   needsObs: false },
+  'COTA_UNICA': { bg: 'var(--status-cotaunica-bg)',  color: 'var(--status-cotaunica-text)',  label: 'Cota Única', needsObs: false },
 };
 
 interface StatusSelectorProps {

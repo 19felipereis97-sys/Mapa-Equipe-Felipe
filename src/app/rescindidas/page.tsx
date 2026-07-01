@@ -34,8 +34,10 @@ const TAB_GROUPS: TabGroup[] = [
     { code: 'financeiro', label: 'Financeiro' },
     { code: 'analise',    label: 'Análise'    },
     { code: 'revisao',    label: 'Revisão'    },
+    { code: 'distribuicao_lucros', label: 'Distrib. Lucros' },
     { code: 'ir_aluguel', label: 'IR Aluguel' },
     { code: 'mit',        label: 'MIT'        },
+    { code: 'cotas_irpj_csll', label: 'Cotas IRPJ/CSLL' },
   ]},
   { label: 'SPED', items: [
     { code: 'sped_ecd', label: 'ECD' },
@@ -51,8 +53,10 @@ const OBL_STATUSES: Record<string, string[]> = {
   financeiro:     ['OK','S/M','P','ST-C'],
   analise:        ['OK','S/M','P','ST-C'],
   revisao:        ['OK','S/M','P','ST-C'],
+  distribuicao_lucros: ['OK','S/M','ST-C'],
   ir_aluguel:     ['OK','S/M','P','ST-C'],
   mit:            ['OK','S/M','P','ST-C'],
+  cotas_irpj_csll: ['OK','PREJUIZO','COTA_UNICA'],
   sped_ecd:       ['OK','P'],
   sped_ecf:       ['OK','P'],
 };

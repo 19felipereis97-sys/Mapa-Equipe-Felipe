@@ -20,7 +20,7 @@ const COLUMNS: KanbanColumn[] = [
   { id: 'todo',    label: 'A Fazer',  color: 'var(--text-secondary)',  bgColor: 'var(--bg-hover)',         statuses: [null] },
   { id: 'pending', label: 'Pendente', color: 'var(--status-p-text)',   bgColor: 'var(--status-p-bg)',      statuses: ['P'] },
   { id: 'standby', label: 'Standby',  color: 'var(--status-sti-text)', bgColor: 'var(--status-sti-bg)',    statuses: ['ST-I','ST-C'] },
-  { id: 'done',    label: 'Concluído',color: 'var(--status-ok-text)',  bgColor: 'var(--status-ok-bg)',     statuses: ['OK','S/M'] },
+  { id: 'done',    label: 'Concluído',color: 'var(--status-ok-text)',  bgColor: 'var(--status-ok-bg)',     statuses: ['OK','S/M','PREJUIZO','COTA_UNICA'] },
 ];
 
 /* ─── Company card ─── */

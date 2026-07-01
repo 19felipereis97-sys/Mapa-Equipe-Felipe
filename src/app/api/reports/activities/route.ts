@@ -6,7 +6,7 @@ import { getEligibleCompaniesForObligation } from '@/services/obligationRulesSer
 import { ANNUAL_OBLIGATIONS } from '@/types/rules';
 
 /* ─── Constants ─── */
-const MONTHLY_CODES = ['dp','fiscal_simples','fiscal_icms','fiscal_servico','financeiro','analise','revisao','ir_aluguel','mit'] as const;
+const MONTHLY_CODES = ['dp','fiscal_simples','fiscal_icms','fiscal_servico','financeiro','analise','revisao','distribuicao_lucros','ir_aluguel','mit','cotas_irpj_csll'] as const;
 const ALL_CODES     = [...MONTHLY_CODES];
 
 const OBL_NAMES: Record<string, string> = {
@@ -17,8 +17,10 @@ const OBL_NAMES: Record<string, string> = {
   financeiro:     'Financeiro',
   analise:        'Análise',
   revisao:        'Revisão',
+  distribuicao_lucros: 'Distribuição de Lucros',
   ir_aluguel:     'IR Aluguel',
   mit:            'MIT',
+  cotas_irpj_csll: 'Cotas IRPJ/CSLL',
   sped_ecd:       'SPED ECD',
   sped_ecf:       'SPED ECF',
 };
@@ -207,6 +209,10 @@ export async function GET(req: NextRequest) {
           case 'P':    p++;   impediments.push({ label, status: 'P',    obs: entry.obs }); break;
           case 'ST-I': sti++; impediments.push({ label, status: 'ST-I', obs: entry.obs }); break;
           case 'ST-C': stc++; impediments.push({ label, status: 'ST-C', obs: entry.obs }); break;
+          // Cotas IRPJ/CSLL only — terminal states with no equivalent column in this
+          // report's fixed layout, so they're folded into "ok" for the completion %.
+          case 'PREJUIZO':
+          case 'COTA_UNICA': ok++; break;
         }
       }
 
@@ -261,7 +267,7 @@ export async function GET(req: NextRequest) {
       const inScope = eligible.filter((c) => c.months[prevMonth - 1]?.eligible ?? true);
       if (inScope.length === 0) { prevOblPct.set(code, 0); continue; }
       const prevMap = prevLookup.get(obl.id) ?? new Map<number, string>();
-      const done = inScope.filter((c) => { const s = prevMap.get(c.companyId); return s === 'OK' || s === 'S/M'; }).length;
+      const done = inScope.filter((c) => { const s = prevMap.get(c.companyId); return s === 'OK' || s === 'S/M' || s === 'PREJUIZO' || s === 'COTA_UNICA'; }).length;
       prevOblPct.set(code, Math.round(done / inScope.length * 100));
     }
     const MONTH_PT_ABBR = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];

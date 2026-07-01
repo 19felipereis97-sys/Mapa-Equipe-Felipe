@@ -124,6 +124,14 @@ function MonthCell({ monthInfo, status, isCurrent, onClick, onMouseEnter, onMous
     );
   }
 
+  if (monthInfo?.blockReason === 'cota_unica_ou_prejuizo') {
+    return (
+      <td style={base} title="Bloqueado — Cota Única/Prejuízo declarado no mês anterior">
+        <div style={{ width: 28, height: 20, margin: '0 auto', borderRadius: 4, background: 'repeating-linear-gradient(45deg,rgba(15,118,110,0.35) 0,rgba(15,118,110,0.35) 2px,transparent 2px,transparent 5px)' }} />
+      </td>
+    );
+  }
+
   return (
     <td
       style={base}
@@ -330,7 +338,7 @@ export function ActivityGrid({
     if (eligible === 0) return 0;
     const done = results.filter((r) => {
       const s = statusMap.get(r.companyId)?.get(m);
-      return s?.status === 'OK' || s?.status === 'S/M';
+      return s?.status === 'OK' || s?.status === 'S/M' || s?.status === 'PREJUIZO' || s?.status === 'COTA_UNICA';
     }).length;
     return Math.round((done / eligible) * 100);
   }), [results, statusMap]);

@@ -129,18 +129,22 @@ export function getResponsibleForObligation(
   obligationCode: string
 ): { id: number; name: string } | null {
   const map: Record<string, { id: number; name: string } | null> = {
-    dp:             company.dpResponsible,
-    fiscal_simples: company.fiscalResponsible,
-    fiscal_icms:    company.fiscalResponsible,
-    fiscal_servico: company.fiscalResponsible,
-    financeiro:     company.financialResponsible,
-    analise:        company.analysisResponsible,
-    revisao:        company.reviewResponsible,
-    ir_aluguel:     company.irRentResponsible,
-    mit:            company.mitResponsible,
-    sped_ecd:       company.analysisResponsible,
-    sped_ecf:       company.analysisResponsible,
-    trava_contabil: null,
+    dp:                  company.dpResponsible,
+    fiscal_simples:      company.fiscalResponsible,
+    fiscal_icms:         company.fiscalResponsible,
+    fiscal_servico:      company.fiscalResponsible,
+    financeiro:          company.financialResponsible,
+    analise:             company.analysisResponsible,
+    revisao:             company.reviewResponsible,
+    // Sem campo de responsável próprio ainda — reaproveita o responsável mais
+    // próximo conceitualmente (Revisão / MIT) para não exigir novo campo na empresa.
+    distribuicao_lucros: company.reviewResponsible,
+    ir_aluguel:          company.irRentResponsible,
+    mit:                 company.mitResponsible,
+    cotas_irpj_csll:     company.mitResponsible,
+    sped_ecd:            company.analysisResponsible,
+    sped_ecf:            company.analysisResponsible,
+    trava_contabil:      null,
   };
   return map[obligationCode] ?? null;
 }
@@ -211,6 +215,7 @@ export function isCompanyEligibleForObligation(
     case 'financeiro':
     case 'analise':
     case 'revisao':
+    case 'distribuicao_lucros':
     case 'trava_contabil':
       return true;
 
@@ -227,6 +232,7 @@ export function isCompanyEligibleForObligation(
       return company.irRent;
 
     case 'mit':
+    case 'cotas_irpj_csll':
       return isLucroRealTaxRegime(taxName);
 
     case 'sped_ecd':
@@ -245,23 +251,31 @@ export function isCompanyEligibleForObligation(
 ───────────────────────────────────────────────────────────────────────────── */
 
 const STATUS_META: Record<string, StatusMeta> = {
-  'OK':     { code: 'OK',     label: 'OK',     type: 'concluido',              requiresObservation: false },
-  'S/M':    { code: 'S/M',    label: 'S/M',    type: 'concluido_sem_movimento', requiresObservation: false },
-  'P':      { code: 'P',      label: 'P',      type: 'pendencia',               requiresObservation: true  },
-  'ST-I':   { code: 'ST-I',   label: 'ST-I',   type: 'standby_interno',         requiresObservation: true  },
-  'ST-C':   { code: 'ST-C',   label: 'ST-C',   type: 'standby_cliente',         requiresObservation: false },
-  'ABERTO': { code: 'ABERTO', label: 'Aberto', type: 'aberto',                  requiresObservation: true  },
+  'OK':         { code: 'OK',         label: 'OK',         type: 'concluido',              requiresObservation: false },
+  'S/M':        { code: 'S/M',        label: 'S/M',        type: 'concluido_sem_movimento', requiresObservation: false },
+  'P':          { code: 'P',          label: 'P',          type: 'pendencia',               requiresObservation: true  },
+  'ST-I':       { code: 'ST-I',       label: 'ST-I',       type: 'standby_interno',         requiresObservation: true  },
+  'ST-C':       { code: 'ST-C',       label: 'ST-C',       type: 'standby_cliente',         requiresObservation: false },
+  'ABERTO':     { code: 'ABERTO',     label: 'Aberto',     type: 'aberto',                  requiresObservation: true  },
+  'PREJUIZO':   { code: 'PREJUIZO',   label: 'Prejuízo',   type: 'concluido',               requiresObservation: false },
+  'COTA_UNICA': { code: 'COTA_UNICA', label: 'Cota Única', type: 'concluido',               requiresObservation: false },
 };
 
 export function getObligationAvailableStatuses(obligationCode: string): StatusMeta[] {
-  const dpFiscal = ['OK', 'S/M', 'P', 'ST-I'];
-  const others   = ['OK', 'S/M', 'P', 'ST-C'];
-  const sped     = ['OK', 'P'];
-  const trava    = ['OK', 'ABERTO'];
+  const dpFiscal    = ['OK', 'S/M', 'P', 'ST-I'];
+  const others      = ['OK', 'S/M', 'P', 'ST-C'];
+  const sped        = ['OK', 'P'];
+  const trava       = ['OK', 'ABERTO'];
+  const distribLucr = ['OK', 'S/M', 'ST-C'];
+  const cotas       = ['OK', 'PREJUIZO', 'COTA_UNICA'];
 
   let codes: string[];
   if (obligationCode === 'trava_contabil') {
     codes = trava;
+  } else if (obligationCode === 'distribuicao_lucros') {
+    codes = distribLucr;
+  } else if (obligationCode === 'cotas_irpj_csll') {
+    codes = cotas;
   } else if (['dp', 'fiscal_simples', 'fiscal_icms', 'fiscal_servico'].includes(obligationCode)) {
     codes = dpFiscal;
   } else if (ANNUAL_OBLIGATIONS.includes(obligationCode as typeof ANNUAL_OBLIGATIONS[number])) {
@@ -271,6 +285,53 @@ export function getObligationAvailableStatuses(obligationCode: string): StatusMe
   }
 
   return codes.map((c) => STATUS_META[c]).filter(Boolean);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   COTAS IRPJ/CSLL — cascade blocking
+   Marking a month as PREJUIZO or COTA_UNICA means the company settled the whole
+   quarter in that single month, so the next two months don't need a quota
+   installment — they're blocked until the next quarterly decision point. This
+   is the only obligation whose blocking depends on previously saved statuses
+   rather than static company fields, so it needs its own DB round-trip.
+───────────────────────────────────────────────────────────────────────────── */
+const COTAS_TRIGGER_STATUSES = ['PREJUIZO', 'COTA_UNICA'];
+
+async function computeCotasCascadeBlocks(companyIds: number[], year: number): Promise<Map<number, Set<number>>> {
+  const result = new Map<number, Set<number>>();
+  if (companyIds.length === 0) return result;
+
+  const obligation = await prisma.obligation.findUnique({ where: { code: 'cotas_irpj_csll' }, select: { id: true } });
+  if (!obligation) return result;
+
+  // Need this year's statuses plus Nov/Dec of the previous year, since a
+  // decision made there can still block Jan/Fev of this year.
+  const statuses = await prisma.activityStatus.findMany({
+    where: {
+      obligationId: obligation.id,
+      companyId: { in: companyIds },
+      status: { in: COTAS_TRIGGER_STATUSES },
+      OR: [
+        { year, month: { gte: 1, lte: 12 } },
+        { year: year - 1, month: { in: [11, 12] } },
+      ],
+    },
+    select: { companyId: true, year: true, month: true },
+  });
+
+  for (const s of statuses) {
+    const abs = s.year * 12 + s.month; // absolute month index, so +1/+2 can safely cross a year boundary
+    for (const offset of [1, 2]) {
+      const targetAbs  = abs + offset;
+      const targetYear = Math.floor((targetAbs - 1) / 12);
+      const targetMonth = targetAbs - targetYear * 12;
+      if (targetYear !== year) continue; // only care about blocks landing inside the requested year
+      if (!result.has(s.companyId)) result.set(s.companyId, new Set());
+      result.get(s.companyId)!.add(targetMonth);
+    }
+  }
+
+  return result;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -295,6 +356,10 @@ export async function getEligibleCompaniesForObligation(
 
   const companies = (await loadCompaniesFromDb(where)) as LoadedCompany[];
 
+  const cascadeBlocks = obligationCode === 'cotas_irpj_csll'
+    ? await computeCotasCascadeBlocks(companies.map((c) => c.id), year)
+    : null;
+
   const results: EligibleCompanyResult[] = [];
 
   for (const company of companies) {
@@ -305,7 +370,17 @@ export async function getEligibleCompaniesForObligation(
     const taxRegime = getCompanyTaxRegimeForYear(company, consideredYear);
     const responsible = getResponsibleForObligation(company, obligationCode);
 
-    const months = isAnnual ? [] : getBlockedMonthsForCompany(company, year);
+    let months = isAnnual ? [] : getBlockedMonthsForCompany(company, year);
+
+    const blockedByCota = cascadeBlocks?.get(company.id);
+    if (blockedByCota && blockedByCota.size > 0) {
+      months = months.map((m) => (
+        !m.blocked && blockedByCota.has(m.month)
+          ? { ...m, blocked: true, eligible: false, blockReason: 'cota_unica_ou_prejuizo' as const }
+          : m
+      ));
+    }
+
     const eligibleMonthsCount = months.filter((m) => m.eligible).length;
     const blockedMonthsCount  = months.filter((m) => m.blocked).length;
 

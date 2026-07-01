@@ -34,8 +34,10 @@ const TAB_GROUPS: TabGroup[] = [
     { code: 'financeiro', label: 'Financeiro' },
     { code: 'analise',    label: 'Análise'    },
     { code: 'revisao',    label: 'Revisão'    },
+    { code: 'distribuicao_lucros', label: 'Distrib. Lucros' },
     { code: 'ir_aluguel', label: 'IR Aluguel' },
     { code: 'mit',        label: 'MIT'        },
+    { code: 'cotas_irpj_csll', label: 'Cotas IRPJ/CSLL' },
   ]},
   { label: 'SPED', items: [
     { code: 'sped_ecd', label: 'ECD' },
@@ -55,8 +57,10 @@ const OBL_STATUSES: Record<string, string[]> = {
   financeiro:     ['OK','S/M','P','ST-C'],
   analise:        ['OK','S/M','P','ST-C'],
   revisao:        ['OK','S/M','P','ST-C'],
+  distribuicao_lucros: ['OK','S/M','ST-C'],
   ir_aluguel:     ['OK','S/M','P','ST-C'],
   mit:            ['OK','S/M','P','ST-C'],
+  cotas_irpj_csll: ['OK','PREJUIZO','COTA_UNICA'],
   sped_ecd:       ['OK','P'],
   sped_ecf:       ['OK','P'],
   trava_contabil: ['OK','ABERTO'],
@@ -328,7 +332,10 @@ export default function AtividadesPage() {
     }
     const eligible = results.filter((r) => r.months[currentMonth - 1]?.eligible);
     const total    = eligible.length;
-    const done     = eligible.filter((r) => { const s = statusMap.get(r.companyId)?.get(currentMonth); return s?.status === 'OK' || s?.status === 'S/M'; }).length;
+    const done     = eligible.filter((r) => {
+      const s = statusMap.get(r.companyId)?.get(currentMonth);
+      return s?.status === 'OK' || s?.status === 'S/M' || s?.status === 'PREJUIZO' || s?.status === 'COTA_UNICA';
+    }).length;
     return { done, total, pct: total > 0 ? Math.round((done / total) * 100) : 0 };
   }, [results, statusMap, spedMap, currentMonth, isAnnual]);
 

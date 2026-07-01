@@ -167,7 +167,7 @@ export function ActivityHistoryList({ companyId, limit = 50, showFilters = true 
 
   const hasFilters = !!(filters.obligationId || filters.year || filters.newStatus);
 
-  const allStatuses = ['OK','S/M','P','ST-I','ST-C'];
+  const allStatuses = ['OK','S/M','P','ST-I','ST-C','ABERTO','PREJUIZO','COTA_UNICA'];
   const years = accountingYears.map((y) => y.year).sort((a, b) => b - a);
 
   return (
