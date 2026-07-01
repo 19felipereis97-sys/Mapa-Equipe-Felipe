@@ -68,8 +68,7 @@ function DeadlineAlertsBlock({ alerts, year, month }: { alerts: DeadlineAlert[];
   const router = useRouter();
   if (alerts.length === 0) return null;
 
-  const today = new Date();
-  const dateStr = today.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' });
+  const periodStr = `${MONTH_NAMES[month - 1]}/${year}`;
 
   const SEV: Record<string, { border: string; bg: string; color: string; label: string }> = {
     expired:   { border: 'var(--color-danger)',  bg: 'var(--color-danger-soft)',  color: 'var(--color-danger)',  label: 'Vencido'  },
@@ -86,7 +85,7 @@ function DeadlineAlertsBlock({ alerts, year, month }: { alerts: DeadlineAlert[];
   return (
     <div style={{ background: 'var(--bg-card)', border: '1px solid var(--color-danger)', borderRadius: 'var(--radius-md)', padding: '14px 18px', boxShadow: 'var(--shadow-sm)' }}>
       <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-danger)', marginBottom: 12 }}>
-        ⚠ Alertas de prazo — {dateStr}
+        ⚠ Alertas de prazo — {periodStr}
       </p>
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
         {alerts.map((alert) => {

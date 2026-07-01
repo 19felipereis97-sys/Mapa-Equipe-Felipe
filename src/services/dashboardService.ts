@@ -197,8 +197,8 @@ export async function getDashboardSummary(month: number, year: number): Promise<
     return { month: m, label, count };
   });
 
-  // 9. Deadline alerts — based on today's date vs. current month's pending
-  const deadlineAlerts = await getDeadlineAlerts(motorResults, statusLookup);
+  // 9. Deadline alerts — based on real calendar due dates vs. the selected month's pending
+  const deadlineAlerts = await getDeadlineAlerts(motorResults, statusLookup, month, year);
 
   return {
     activeCompanies,
@@ -215,21 +215,28 @@ export async function getDashboardSummary(month: number, year: number): Promise<
   };
 }
 
-/* ─── Deadline alerts (always computed for current date) ─────────────────────
+/* ─── Deadline alerts (cross-referenced against the selected month/year) ──────
    Each obligation normally has one "general" deadline (taxRegimeId = null).
    Financeiro/Análise may additionally have one deadline per tax regime, which
    takes precedence over the general one for companies on that regime — so a
    single obligation can surface more than one alert card (different due days).
+
+   dueDay always falls in the calendar month right after the competência month
+   being viewed (e.g. competência Maio is due in June), so "days until due" is
+   computed against that real calendar date — not always today's real month.
+   This makes "vencido"/"urgente"/"atenção" reflect whichever month/year is
+   selected in the Dashboard filter, including past periods (always expired)
+   and the real current period (precise day-by-day countdown, as before).
 ──────────────────────────────────────────────────────────────────────────── */
 async function getDeadlineAlerts(
   motorResults: Array<{ code: string; obl: { id: number; code: string; name: string } | null; eligible: import('@/types/rules').EligibleCompanyResult[] }>,
   statusLookup: Map<number, Map<number, Map<number, string>>>,
+  month: number,
+  year: number,
 ): Promise<DeadlineAlert[]> {
   const today = new Date();
-  const todayDay   = today.getDate();
-  // Competência contábil = mês anterior ao calendário
-  const calMonth   = today.getMonth(); // 0-indexed
-  const todayMonth = calMonth === 0 ? 12 : calMonth;
+  const dueCalMonth = month === 12 ? 1 : month + 1; // 1-indexed calendar month
+  const dueCalYear  = month === 12 ? year + 1 : year;
 
   const deadlines = await prisma.deadline.findMany({
     where: { active: true },
@@ -252,18 +259,18 @@ async function getDeadlineAlerts(
     const motorEntry = motorResults.find((m) => m.obl?.code === obligation.code);
     if (!motorEntry || !motorEntry.obl) continue;
 
-    // Companies eligible for today's month
-    const inTodayMonth = motorEntry.eligible.filter((c) => c.months[todayMonth - 1]?.eligible);
-    if (inTodayMonth.length === 0) continue;
+    // Companies eligible for the selected competência month
+    const inMonth = motorEntry.eligible.filter((c) => c.months[month - 1]?.eligible);
+    if (inMonth.length === 0) continue;
 
-    const statusByCompany = statusLookup.get(motorEntry.obl.id)?.get(todayMonth) ?? new Map<number, string>();
+    const statusByCompany = statusLookup.get(motorEntry.obl.id)?.get(month) ?? new Map<number, string>();
 
     const general = deadlineGroup.find((d) => d.taxRegimeId === null) ?? null;
     const byRegimeId = new Map(deadlineGroup.filter((d) => d.taxRegimeId !== null).map((d) => [d.taxRegimeId as number, d]));
 
     // Bucket companies by whichever deadline actually applies to them
-    const buckets = new Map<number, { deadline: typeof deadlineGroup[number]; companies: typeof inTodayMonth }>();
-    for (const c of inTodayMonth) {
+    const buckets = new Map<number, { deadline: typeof deadlineGroup[number]; companies: typeof inMonth }>();
+    for (const c of inMonth) {
       const regimeId = c.taxRegime?.id ?? null;
       const applicable = (regimeId !== null ? byRegimeId.get(regimeId) : undefined) ?? general;
       if (!applicable) continue;
@@ -272,8 +279,9 @@ async function getDeadlineAlerts(
     }
 
     for (const { deadline, companies } of Array.from(buckets.values())) {
-      const daysUntilDue = deadline.dueDay - todayDay;
-      if (daysUntilDue > 5) continue; // only alert if expired or within 5 days
+      const dueDate = new Date(dueCalYear, dueCalMonth - 1, deadline.dueDay);
+      const daysUntilDue = Math.round((dueDate.getTime() - today.getTime()) / 86400000);
+      if (daysUntilDue > 5) continue; // only alert if expired or within 5 days (future periods are naturally skipped here)
 
       const pendingCount = companies.filter((c) => {
         const s = statusByCompany.get(c.companyId);
