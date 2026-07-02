@@ -14,8 +14,9 @@ const DEFAULT_OBLIGATIONS = [
   { code: 'ir_aluguel',         name: 'IR Aluguel',           group: null,   type: 'mensal', order: 9  },
   { code: 'mit',                name: 'MIT',                  group: null,   type: 'mensal', order: 10 },
   { code: 'cotas_irpj_csll',    name: 'Cotas IRPJ/CSLL',      group: null,   type: 'mensal', order: 11 },
-  { code: 'sped_ecd',           name: 'SPED ECD',             group: 'SPED', type: 'anual',  order: 12 },
-  { code: 'sped_ecf',           name: 'SPED ECF',             group: 'SPED', type: 'anual',  order: 13 },
+  { code: 'sped_ecd',           name: 'SPED ECD',             group: 'SPED',     type: 'anual',  order: 12 },
+  { code: 'sped_ecf',           name: 'SPED ECF',             group: 'SPED',     type: 'anual',  order: 13 },
+  { code: 'trava_contabil',     name: 'Trava Contábil',       group: 'Contábil', type: 'mensal', order: 14 },
 ];
 
 async function main() {
