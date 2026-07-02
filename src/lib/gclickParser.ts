@@ -41,7 +41,15 @@ function significantWords(label: string): string[] {
 
 function cellText(value: ExcelJS.CellValue): string {
   if (value === null || value === undefined) return '';
-  if (value instanceof Date) return value.toISOString();
+  // Campos de texto livre (Ação, Meta, Status) às vezes vêm como data nativa do
+  // Excel — grava só a data (sem hora/timezone) para não poluir a tela nem
+  // deixar o sourceKey instável entre reimportações do mesmo arquivo.
+  if (value instanceof Date) {
+    const y = value.getFullYear();
+    const m = String(value.getMonth() + 1).padStart(2, '0');
+    const d = String(value.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
   if (typeof value === 'object' && 'richText' in (value as object)) {
     return (value as ExcelJS.CellRichTextValue).richText.map((rt) => rt.text).join('');
   }

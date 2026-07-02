@@ -17,6 +17,19 @@ export function formatDueDate(dateStr: string | null, raw?: string | null): stri
   return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
+// Alguns campos livres (Meta, Ação) vêm como data nativa do Excel — sem isso
+// aparecem crus tipo "2026-07-03T00:00:00.000Z" em vez de "03/07/2026".
+// Texto que não parece data é devolvido sem alteração.
+export function formatIfDate(value: string | null): string | null {
+  if (!value) return value;
+  const iso = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) {
+    const d = new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]));
+    if (!isNaN(d.getTime())) return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  }
+  return value;
+}
+
 interface UrgencyBadgeProps {
   urgency: Urgency;
   dueDate: string | null;

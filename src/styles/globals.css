@@ -1157,8 +1157,8 @@ tbody tr:last-child td {
 .gclick-subject-card {
   background: var(--bg-card);
   border: 1px solid var(--border-color);
-  border-radius: 16px;
-  padding: 22px 24px;
+  border-radius: 14px;
+  padding: 14px 18px;
   box-shadow: var(--shadow-sm);
   transition: opacity 0.28s ease, transform 0.28s ease, box-shadow var(--transition-fast);
 }
@@ -1170,8 +1170,8 @@ tbody tr:last-child td {
 .gclick-client-card {
   background: var(--bg-hover);
   border: 1px solid var(--border-color);
-  border-radius: 14px;
-  padding: 16px;
+  border-radius: 12px;
+  padding: 12px;
   display: flex;
   flex-direction: column;
   transition: opacity 0.28s ease, transform 0.28s ease, box-shadow var(--transition-fast);

@@ -6,20 +6,6 @@ import { UrgencyBadge, formatDueDate } from './UrgencyBadge';
 import { Button } from '@/components/ui/Button';
 import type { GClickSubjectGroup } from '@/types/gclick';
 
-function Stat({ label, value, danger }: { label: string; value: number; danger?: boolean }) {
-  if (value === 0 && danger) return null;
-  return (
-    <div>
-      <p style={{ fontSize: 20, fontWeight: 800, color: danger ? 'var(--color-danger)' : 'var(--text-primary)', lineHeight: 1 }}>
-        {value}
-      </p>
-      <p style={{ fontSize: 10, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: 3 }}>
-        {label}
-      </p>
-    </div>
-  );
-}
-
 interface SubjectCardProps {
   group: GClickSubjectGroup;
   removing?: boolean;
@@ -33,43 +19,43 @@ export function SubjectCard({
   group, removing, removingClientKeys, onToggleTask, onCompleteSubject, onCompleteClient,
 }: SubjectCardProps) {
   const [expanded, setExpanded] = useState(false);
+  // Só mostra a data mais distante quando ela difere da 1ª — o badge já cobre
+  // o vencimento mais próximo, não faz sentido repetir o mesmo dia duas vezes.
+  const hasDueRange = group.earliestDueDate && group.latestDueDate && group.earliestDueDate !== group.latestDueDate;
 
   return (
     <div className={`gclick-subject-card${removing ? ' gclick-card-removing' : ''}`}>
-      <div
-        onClick={() => setExpanded((v) => !v)}
-        style={{ cursor: 'pointer' }}
-        role="button"
-        aria-expanded={expanded}
-      >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
-          <div style={{ minWidth: 0 }}>
-            <p style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)' }}>{group.subject}</p>
-            <p style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 3 }}>{group.department}</p>
-          </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
+        <div
+          onClick={() => setExpanded((v) => !v)}
+          style={{ cursor: 'pointer', minWidth: 0, flex: 1 }}
+          role="button"
+          aria-expanded={expanded}
+        >
+          <p style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-primary)' }}>{group.subject}</p>
+          <p style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>{group.department}</p>
+
+          <p style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 8 }}>
+            {group.clientCount} cliente{group.clientCount !== 1 ? 's' : ''} · {group.competenceCount} competência{group.competenceCount !== 1 ? 's' : ''} · {group.taskCount} tarefa{group.taskCount !== 1 ? 's' : ''}
+            {group.overdueCount > 0 && (
+              <span style={{ color: 'var(--color-danger)', fontWeight: 700 }}> · {group.overdueCount} vencida{group.overdueCount !== 1 ? 's' : ''}</span>
+            )}
+            {hasDueRange && ` · até ${formatDueDate(group.latestDueDate)}`}
+          </p>
+
+          <p style={{ fontSize: 11, color: 'var(--color-primary)', fontWeight: 600, marginTop: 6 }}>
+            {expanded ? '▲ Recolher' : '▼ Ver clientes'}
+          </p>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8, flexShrink: 0 }} onClick={(e) => e.stopPropagation()}>
           <UrgencyBadge urgency={group.urgency} dueDate={group.earliestDueDate} />
+          <Button variant="primary" size="sm" onClick={onCompleteSubject}>✓ Concluir</Button>
         </div>
-
-        <div style={{ display: 'flex', gap: 22, marginTop: 16, flexWrap: 'wrap' }}>
-          <Stat label="Clientes" value={group.clientCount} />
-          <Stat label="Competências" value={group.competenceCount} />
-          <Stat label="Tarefas" value={group.taskCount} />
-          <Stat label="Vencidas" value={group.overdueCount} danger />
-        </div>
-
-        <p style={{ fontSize: 11, color: 'var(--text-placeholder)', marginTop: 12 }}>
-          {group.earliestDueDate ? (
-            <>1º vencimento {formatDueDate(group.earliestDueDate)} · último {formatDueDate(group.latestDueDate)}</>
-          ) : 'Sem vencimentos informados'}
-        </p>
-
-        <p style={{ fontSize: 11, color: 'var(--color-primary)', fontWeight: 600, marginTop: 10 }}>
-          {expanded ? '▲ Recolher clientes' : '▼ Ver clientes'}
-        </p>
       </div>
 
       {expanded && (
-        <div style={{ marginTop: 16, display: 'grid', gap: 14, gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
+        <div style={{ marginTop: 14, display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))' }}>
           {group.clients.map((c) => {
             const key = c.clientCode ?? c.clientName;
             return (
@@ -84,12 +70,6 @@ export function SubjectCard({
           })}
         </div>
       )}
-
-      <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end' }} onClick={(e) => e.stopPropagation()}>
-        <Button variant="primary" size="sm" onClick={onCompleteSubject}>
-          ✓ Concluir Assunto
-        </Button>
-      </div>
     </div>
   );
 }
