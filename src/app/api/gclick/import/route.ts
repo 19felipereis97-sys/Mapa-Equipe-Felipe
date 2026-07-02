@@ -14,8 +14,11 @@ export async function POST(req: NextRequest) {
     const parsed = await parseGClickWorkbook(buffer);
 
     if (parsed.missingColumns.length > 0) {
+      const found = parsed.detectedHeaders.length > 0
+        ? ` Cabeçalhos encontrados na planilha: ${parsed.detectedHeaders.join(', ')}.`
+        : '';
       return NextResponse.json({
-        error: `Colunas obrigatórias ausentes na planilha: ${parsed.missingColumns.join(', ')}`,
+        error: `Colunas obrigatórias ausentes na planilha: ${parsed.missingColumns.join(', ')}.${found}`,
         success: false,
       }, { status: 400 });
     }

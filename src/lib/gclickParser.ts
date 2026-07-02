@@ -27,7 +27,16 @@ function normalize(text: string): string {
     .replace(/[̀-ͯ]/g, '') // remove acentos
     .trim()
     .toLowerCase()
-    .replace(/\s+/g, ' ');
+    .replace(/[.:_-]/g, ' ') // pontuação comum entre palavras vira espaço
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// Palavras significativas de um rótulo, para o pareamento por aproximação
+// (ex.: aceita "Status do Cliente" ou "Cliente - Status" para "Status Cliente").
+function significantWords(label: string): string[] {
+  const STOPWORDS = new Set(['de', 'do', 'da', 'dos', 'das', 'e']);
+  return normalize(label).split(' ').filter((w) => w && !STOPWORDS.has(w));
 }
 
 function cellText(value: ExcelJS.CellValue): string {
@@ -95,6 +104,7 @@ function parseClient(raw: string): { code: string | null; name: string } {
 export interface GClickParseResult {
   rows: ParsedGClickRow[];
   missingColumns: string[];
+  detectedHeaders: string[];
   totalDataRows: number;
   skippedEmptyRows: number;
 }
@@ -105,24 +115,59 @@ export async function parseGClickWorkbook(buffer: ArrayBuffer): Promise<GClickPa
   await wb.xlsx.load(buffer as any);
   const ws = wb.worksheets[0];
   if (!ws) {
-    return { rows: [], missingColumns: EXPECTED_COLUMNS.map((c) => c.label), totalDataRows: 0, skippedEmptyRows: 0 };
+    return { rows: [], missingColumns: EXPECTED_COLUMNS.map((c) => c.label), detectedHeaders: [], totalDataRows: 0, skippedEmptyRows: 0 };
   }
 
   // Encontra a linha de cabeçalho — normalmente a primeira, mas tolera até 5
   // linhas de título/instrução antes dela, caso a exportação do G-Click mude.
+  // Pareamento em duas passadas: (1) texto igual ao esperado, (2) aproximado —
+  // cabeçalho que contenha todas as palavras do rótulo esperado, em qualquer
+  // ordem, tolerando variações como "Status do Cliente" ou "Cliente/Status".
   let headerRowNum = 1;
   let columnIndex: Partial<Record<ColumnKey, number>> = {};
+  let detectedHeaders: string[] = [];
+
   for (let r = 1; r <= Math.min(5, ws.rowCount); r++) {
     const row = ws.getRow(r);
-    const map: Partial<Record<ColumnKey, number>> = {};
+    const cells: { text: string; colNumber: number }[] = [];
     row.eachCell({ includeEmpty: false }, (cell, colNumber) => {
-      const text = normalize(cellText(cell.value));
-      const found = EXPECTED_COLUMNS.find((c) => normalize(c.label) === text);
-      if (found) map[found.key] = colNumber;
+      const text = cellText(cell.value);
+      if (text) cells.push({ text, colNumber });
     });
+    if (cells.length === 0) continue;
+
+    const map: Partial<Record<ColumnKey, number>> = {};
+    const claimed = new Set<number>();
+
+    // Passada 1 — correspondência exata
+    for (const { text, colNumber } of cells) {
+      const normalized = normalize(text);
+      const found = EXPECTED_COLUMNS.find((c) => normalize(c.label) === normalized);
+      if (found && map[found.key] === undefined) {
+        map[found.key] = colNumber;
+        claimed.add(colNumber);
+      }
+    }
+
+    // Passada 2 — aproximada, só para colunas ainda não encontradas
+    for (const col of EXPECTED_COLUMNS) {
+      if (map[col.key] !== undefined) continue;
+      const words = significantWords(col.label);
+      const match = cells.find(({ text, colNumber }) => {
+        if (claimed.has(colNumber)) return false;
+        const cellWords = new Set(normalize(text).split(' '));
+        return words.every((w) => cellWords.has(w));
+      });
+      if (match) {
+        map[col.key] = match.colNumber;
+        claimed.add(match.colNumber);
+      }
+    }
+
     if (Object.keys(map).length >= 5) {
       headerRowNum = r;
       columnIndex = map;
+      detectedHeaders = cells.map((c) => c.text);
       break;
     }
   }
@@ -132,7 +177,7 @@ export async function parseGClickWorkbook(buffer: ArrayBuffer): Promise<GClickPa
     .map((c) => c.label);
 
   if (missingColumns.length > 0) {
-    return { rows: [], missingColumns, totalDataRows: 0, skippedEmptyRows: 0 };
+    return { rows: [], missingColumns, detectedHeaders, totalDataRows: 0, skippedEmptyRows: 0 };
   }
 
   const rows: ParsedGClickRow[] = [];
@@ -186,5 +231,5 @@ export async function parseGClickWorkbook(buffer: ArrayBuffer): Promise<GClickPa
     });
   }
 
-  return { rows, missingColumns: [], totalDataRows, skippedEmptyRows };
+  return { rows, missingColumns: [], detectedHeaders, totalDataRows, skippedEmptyRows };
 }
