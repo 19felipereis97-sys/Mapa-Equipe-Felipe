@@ -19,6 +19,7 @@ import { KanbanView } from '@/components/atividades/KanbanView';
 import { TravaAbertoModal } from '@/components/atividades/TravaContabilModal';
 import type { TravaRequester } from '@/components/atividades/TravaContabilModal';
 import { getCompetenceMonth } from '@/lib/utils';
+import { useIsMobile } from '@/hooks/useIsMobile';
 
 /* ─── Tab definitions ─── */
 interface TabItem  { code: string; label: string }
@@ -186,6 +187,9 @@ export default function AtividadesPage() {
   const [pdfLoading, setPdfLoading] = useState(false);
   // Kanban
   const [viewMode, setViewMode]   = useState<'grade' | 'kanban'>('grade');
+  const isMobile = useIsMobile();
+  // A grade de 12 meses não cabe de forma legível em tela de celular — força Kanban.
+  const effectiveViewMode = isMobile ? 'kanban' : viewMode;
   const [kanbanMonth, setKanbanMonth] = useState(currentMonth);
 
   useEffect(() => {
@@ -652,8 +656,8 @@ export default function AtividadesPage() {
           <p className="page-subtitle">Controle mensal por empresa</p>
         </div>
         <div className="no-print" style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          {/* Grade / Kanban toggle */}
-          {!isAnnual && (
+          {/* Grade / Kanban toggle — some sentido só em desktop, a grade de 12 meses não cabe no celular */}
+          {!isAnnual && !isMobile && (
             <div style={{ display: 'flex', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)', overflow: 'hidden' }}>
               {(['grade','kanban'] as const).map((mode) => (
                 <button key={mode} onClick={() => setViewMode(mode)} style={{ padding: '5px 12px', border: 'none', background: viewMode === mode ? 'var(--color-primary)' : 'var(--bg-card)', color: viewMode === mode ? '#fff' : 'var(--text-secondary)', fontSize: 'var(--font-size-sm)', cursor: 'pointer', fontFamily: 'var(--font-family)', fontWeight: viewMode === mode ? 600 : 400 }}>
@@ -662,7 +666,7 @@ export default function AtividadesPage() {
               ))}
             </div>
           )}
-          {viewMode === 'kanban' && !isAnnual && (
+          {effectiveViewMode === 'kanban' && !isAnnual && (
             <select className="form-select" style={{ width: 80, height: 34, fontSize: 'var(--font-size-sm)' }}
               value={kanbanMonth} onChange={(e) => setKanbanMonth(Number(e.target.value))}>
               {MONTH_ABBR.map((label, i) => <option key={i + 1} value={i + 1}>{label}</option>)}
@@ -710,7 +714,7 @@ export default function AtividadesPage() {
       </div>
 
       {/* ── Bulk action bar ── */}
-      {selected.size > 0 && !isAnnual && viewMode === 'grade' && (
+      {selected.size > 0 && !isAnnual && effectiveViewMode === 'grade' && (
         <div className="no-print">
           <BulkActionBar
             count={selected.size}
@@ -834,7 +838,7 @@ export default function AtividadesPage() {
                 year={year}
                 onCellClick={handleSpedCellClick}
               />
-            ) : viewMode === 'kanban' ? (
+            ) : effectiveViewMode === 'kanban' ? (
               <KanbanView
                 results={filtered}
                 statusMap={statusMap}

@@ -1,34 +1,71 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useSidebar } from '@/hooks/useSidebar';
+import { useMobileNav } from '@/hooks/useMobileNav';
 import { useTheme } from '@/hooks/useTheme';
 import { MENU_ITEMS } from '@/constants/menu';
-import { NavIcon, IconChevronLeft, IconChevronRight, IconSun, IconMoon } from './Icons';
+import { NavIcon, IconChevronLeft, IconChevronRight, IconSun, IconMoon, IconX } from './Icons';
 import { Tooltip } from '@/components/ui/Tooltip';
 
 export function Sidebar() {
   const { isCollapsed, toggle } = useSidebar();
+  const { isOpen: mobileOpen, close: closeMobileNav } = useMobileNav();
   const { theme, toggleTheme } = useTheme();
   const pathname = usePathname();
 
+  // Fecha a gaveta mobile automaticamente ao trocar de rota.
+  useEffect(() => { closeMobileNav(); }, [pathname, closeMobileNav]);
+
+  // Enquanto a gaveta mobile estiver aberta: Escape fecha, e o scroll do body
+  // fica travado (senão o conteúdo por trás rola junto no iOS).
+  useEffect(() => {
+    if (!mobileOpen) return;
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') closeMobileNav();
+    }
+    document.addEventListener('keydown', handleKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', handleKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [mobileOpen, closeMobileNav]);
+
   return (
-    <aside className={`sidebar${isCollapsed ? ' collapsed' : ''}`}>
+    <>
+      {/* Overlay — só visível/clicável em mobile com a gaveta aberta (CSS cuida disso) */}
+      <div
+        className={`sidebar-overlay${mobileOpen ? ' visible' : ''}`}
+        onClick={closeMobileNav}
+        aria-hidden="true"
+      />
+      <aside className={`sidebar${isCollapsed ? ' collapsed' : ''}${mobileOpen ? ' mobile-open' : ''}`}>
       {/* Header */}
       <div className={`sidebar-header${isCollapsed ? ' sidebar-header-collapsed' : ''}`}>
-        {!isCollapsed && (
-          <span className="sidebar-logo-text sidebar-logo-brand">
-            Mapa da Equipe
-          </span>
-        )}
+        {/* Sempre renderizado — o CSS esconde em modo collapsed no desktop
+            (.sidebar.collapsed .sidebar-logo-brand), mas a gaveta mobile
+            nunca deve ficar sem o nome do app, mesmo que a preferência de
+            collapse do desktop esteja salva como true. */}
+        <span className="sidebar-logo-text sidebar-logo-brand">
+          Mapa da Equipe
+        </span>
         <button
           className="sidebar-toggle-btn"
           onClick={toggle}
           aria-label={isCollapsed ? 'Expandir menu' : 'Recolher menu'}
         >
           {isCollapsed ? <IconChevronRight size={16} /> : <IconChevronLeft size={16} />}
+        </button>
+        <button
+          className="sidebar-close-btn"
+          onClick={closeMobileNav}
+          aria-label="Fechar menu"
+        >
+          <IconX size={18} />
         </button>
       </div>
 
@@ -82,6 +119,7 @@ export function Sidebar() {
           </button>
         )}
       </div>
-    </aside>
+      </aside>
+    </>
   );
 }

@@ -3,6 +3,13 @@
    Corporate, clean, professional for internal accounting use
    ============================================================ */
 
+/* Breakpoints (CSS custom properties don't work inside @media, so these are
+   documentation only — the literal px values are repeated in each query):
+   - até 640px   = mobile (telefone)
+   - 641–1024px  = tablet
+   - acima disso = desktop (comportamento padrão, sem media query)
+   - 480px é um breakpoint extra pontual pra telefones bem pequenos. */
+
 :root {
   /* --- Light theme (default) --- */
   --bg-main: #F8FAFC;

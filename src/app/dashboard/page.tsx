@@ -387,7 +387,7 @@ export default function DashboardPage() {
           </div>
 
           {/* ── Middle row ── */}
-          <div style={{ display: 'grid', gridTemplateColumns: '3fr 2fr', gap: 16 }}>
+          <div className="dashboard-middle-row">
             <ProgressCard data={data.progressByObligation} month={month} year={year} />
             <AlertsCard
               data={data.delayedObligations}

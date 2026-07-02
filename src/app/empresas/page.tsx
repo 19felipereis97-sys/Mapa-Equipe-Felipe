@@ -10,8 +10,10 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { useToast } from '@/components/ui/Toast';
 import { useAppContext } from '@/context/AppContext';
 import { CompanyDrawer } from '@/components/empresas/CompanyDrawer';
+import { CompanyCardList } from '@/components/empresas/CompanyCardList';
 import type { Company, TaxRegime, Level } from '@/types/entities';
 import { formatDocument } from '@/lib/masks';
+import { useIsMobile } from '@/hooks/useIsMobile';
 
 /* ─── Helpers ─── */
 const PLACEHOLDER: React.CSSProperties = { color: 'var(--text-placeholder)' };
@@ -267,6 +269,7 @@ export default function EmpresasPage() {
 
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const isMobile = useIsMobile();
   const [bulkDeleting, setBulkDeleting] = useState(false);
 
   const [search, setSearch]         = useState('');
@@ -480,6 +483,23 @@ export default function EmpresasPage() {
                 : 'Clique em + Nova Empresa para começar.'
             }
           />
+        ) : isMobile ? (
+          <>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '10px 12px 0' }}>
+              <button className="action-btn" onClick={toggleSelectAll}>
+                {selectedIds.size === filtered.length ? 'Limpar seleção' : 'Selecionar todos'}
+              </button>
+            </div>
+            <CompanyCardList
+              companies={filtered}
+              levels={levels}
+              taxRegimes={taxRegimes}
+              activeYearId={activeYear?.id}
+              selectedIds={selectedIds}
+              onToggleSelect={toggleSelectRow}
+              onOpenEdit={openEdit}
+            />
+          </>
         ) : (
           <div className="table-wrapper" style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: 'calc(100vh - 220px)' }}>
             <table style={{ minWidth: 1940, fontSize: 'var(--font-size-sm)' }}>

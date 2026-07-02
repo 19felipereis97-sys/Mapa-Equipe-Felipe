@@ -8,6 +8,14 @@ interface AppContextValue {
   toggleSidebar: () => void;
   setSidebarCollapsed: (v: boolean) => void;
 
+  // Gaveta de navegação mobile — estado efêmero (nunca persiste em localStorage,
+  // sempre reseta ao trocar de rota), propositalmente separado de sidebarCollapsed
+  // que é uma preferência de desktop persistida.
+  mobileNavOpen: boolean;
+  openMobileNav: () => void;
+  closeMobileNav: () => void;
+  toggleMobileNav: () => void;
+
   professionals: Professional[];
   teams: Team[];
   taxRegimes: TaxRegime[];
@@ -42,6 +50,7 @@ async function fetchJson<T>(url: string): Promise<T[]> {
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [sidebarCollapsed, setSidebarCollapsedState] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   const [professionals, setProfessionals] = useState<Professional[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
@@ -65,6 +74,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const toggleSidebar = useCallback(() => {
     setSidebarCollapsed(!sidebarCollapsed);
   }, [sidebarCollapsed, setSidebarCollapsed]);
+
+  const openMobileNav = useCallback(() => setMobileNavOpen(true), []);
+  const closeMobileNav = useCallback(() => setMobileNavOpen(false), []);
+  const toggleMobileNav = useCallback(() => setMobileNavOpen((v) => !v), []);
 
   const refreshAppData = useCallback(async () => {
     setIsLoading(true);
@@ -97,6 +110,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         sidebarCollapsed,
         toggleSidebar,
         setSidebarCollapsed,
+        mobileNavOpen,
+        openMobileNav,
+        closeMobileNav,
+        toggleMobileNav,
         professionals,
         teams,
         taxRegimes,

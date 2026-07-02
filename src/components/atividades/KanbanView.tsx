@@ -108,19 +108,19 @@ function KanbanCol({
   onCellClick: (info: CellClickInfo) => void;
 }) {
   return (
-    <div style={{
-      flex: 1, minWidth: 200, maxWidth: 320,
-      display: 'flex', flexDirection: 'column', gap: 0,
-    }}>
+    <div className="kanban-column">
       {/* Column header */}
-      <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '8px 12px',
-        background: col.bgColor,
-        borderRadius: 'var(--radius-sm)',
-        marginBottom: 10,
-        border: `1px solid ${col.bgColor}`,
-      }}>
+      <div
+        className="kanban-column-header"
+        style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '8px 12px',
+          background: col.bgColor,
+          borderRadius: 'var(--radius-sm)',
+          marginBottom: 10,
+          border: `1px solid ${col.bgColor}`,
+        }}
+      >
         <span style={{ fontSize: 12, fontWeight: 700, color: col.color, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
           {col.label}
         </span>
@@ -130,7 +130,7 @@ function KanbanCol({
       </div>
 
       {/* Cards */}
-      <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+      <div className="kanban-column-cards">
         {cards.length === 0 ? (
           <div style={{ padding: '16px 12px', textAlign: 'center', fontSize: 11, color: 'var(--text-placeholder)', border: '1px dashed var(--border-color)', borderRadius: 'var(--radius-sm)' }}>
             Nenhuma empresa
@@ -217,7 +217,7 @@ export function KanbanView({ results, statusMap, month, onCellClick, search }: K
 
   return (
     <div style={{ padding: '14px 14px 20px', overflowX: 'auto' }}>
-      <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start', minWidth: 860, minHeight: 420 }}>
+      <div className="kanban-columns">
         {COLUMNS.map((col) => (
           <KanbanCol
             key={col.id}

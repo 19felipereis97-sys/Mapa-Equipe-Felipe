@@ -151,6 +151,10 @@ img, svg {
   justify-content: center;
 }
 
+.sidebar.collapsed .sidebar-logo-brand {
+  display: none;
+}
+
 .sidebar-logo-icon {
   width: 32px;
   height: 32px;
@@ -179,6 +183,25 @@ img, svg {
 }
 
 .sidebar-toggle-btn:hover {
+  color: #FFFFFF;
+  background-color: rgba(255,255,255,0.08);
+}
+
+/* Only relevant inside the mobile drawer (collapse doesn't apply there) — hidden on desktop */
+.sidebar-close-btn {
+  display: none;
+  background: none;
+  border: none;
+  color: var(--text-sidebar-inactive);
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: color var(--transition-fast), background-color var(--transition-fast);
+}
+
+.sidebar-close-btn:hover {
   color: #FFFFFF;
   background-color: rgba(255,255,255,0.08);
 }
@@ -271,6 +294,121 @@ img, svg {
 .theme-toggle-btn:hover {
   background-color: var(--bg-sidebar-hover);
   color: #FFFFFF;
+}
+
+/* ============================================================
+   MOBILE NAVIGATION (header hambúrguer + sidebar vira gaveta)
+   ============================================================ */
+.mobile-header {
+  display: none;
+}
+
+.sidebar-overlay {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .app-layout {
+    flex-direction: column;
+    height: auto;
+    min-height: 100vh;
+    overflow: visible;
+  }
+
+  .mobile-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    height: var(--header-height);
+    padding: 0 14px;
+    background-color: var(--bg-sidebar);
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    flex-shrink: 0;
+  }
+
+  .mobile-header-menu-btn {
+    background: none;
+    border: none;
+    color: #FFFFFF;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-sm);
+  }
+
+  .mobile-header-menu-btn:hover {
+    background-color: rgba(255,255,255,0.08);
+  }
+
+  .mobile-header-title {
+    font-size: 15px;
+    font-weight: 800;
+    color: #FFFFFF;
+  }
+
+  .sidebar-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background-color: var(--bg-overlay);
+    z-index: 45;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--transition-base);
+  }
+
+  .sidebar-overlay.visible {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  /* A gaveta mobile ignora o modo collapsed do desktop — sempre largura cheia */
+  .sidebar,
+  .sidebar.collapsed {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 280px;
+    min-width: 0;
+    max-width: 85vw;
+    height: 100vh;
+    transform: translateX(-100%);
+    transition: transform var(--transition-base);
+    z-index: 60;
+  }
+
+  .sidebar.mobile-open,
+  .sidebar.collapsed.mobile-open {
+    transform: translateX(0);
+  }
+
+  /* Modo collapsed (mini, 64px) só existe em desktop — em mobile sempre mostra labels */
+  .sidebar.collapsed .sidebar-nav-label {
+    opacity: 1;
+    width: auto;
+  }
+
+  .sidebar-header-collapsed {
+    justify-content: space-between;
+  }
+
+  .sidebar.collapsed .sidebar-logo-brand {
+    display: inline;
+  }
+
+  /* O toggle de collapse não faz sentido numa gaveta que já está oculta por padrão */
+  .sidebar-toggle-btn {
+    display: none;
+  }
+
+  .sidebar-close-btn {
+    display: flex;
+  }
 }
 
 /* ============================================================
@@ -853,8 +991,73 @@ tbody tr:last-child td {
   align-items: start;
 }
 
-@media (max-width: 480px) {
+@media (max-width: 640px) {
   .form-grid-2 { grid-template-columns: 1fr; }
+}
+
+/* ============================================================
+   DASHBOARD
+   ============================================================ */
+.dashboard-middle-row {
+  display: grid;
+  grid-template-columns: 3fr 2fr;
+  gap: 16px;
+}
+
+@media (max-width: 1024px) {
+  .dashboard-middle-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ============================================================
+   KANBAN (visão de Atividades — vira a visão mobile default)
+   ============================================================ */
+.kanban-columns {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  min-width: 860px;
+  min-height: 420px;
+}
+
+.kanban-column {
+  flex: 1;
+  min-width: 200px;
+  max-width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.kanban-column-cards {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+@media (max-width: 640px) {
+  .kanban-columns {
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .kanban-column {
+    min-width: 0;
+    max-width: none;
+  }
+
+  .kanban-column-header {
+    position: sticky;
+    top: var(--header-height);
+    z-index: 5;
+  }
+
+  /* Em desktop cada coluna rola sozinha lado a lado; empilhado, quem rola é a página inteira */
+  .kanban-column-cards {
+    flex: none;
+    overflow-y: visible;
+  }
 }
 
 /* ============================================================
