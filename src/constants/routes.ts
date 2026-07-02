@@ -9,6 +9,7 @@ export const ROUTES = {
   METAS_DIA: '/metas-dia',
   RESCINDIDAS: '/rescindidas',
   PORTAIS_ELETRONICOS: '/portais-eletronicos',
+  TAREFAS_GCLICK: '/tarefas-gclick',
   CONFIGURACOES: '/configuracoes',
 } as const;
 

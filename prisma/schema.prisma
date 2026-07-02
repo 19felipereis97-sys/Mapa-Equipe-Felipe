@@ -332,3 +332,38 @@ model CompanyTaxRegime {
   @@index([companyId])
   @@map("company_tax_regimes")
 }
+
+// Uma linha por tarefa importada da planilha do G-Click. sourceKey identifica
+// a mesma tarefa entre importações (departamento+assunto+cliente+competência+
+// ação+meta), permitindo reimportar sem duplicar nem perder o status de
+// conclusão já marcado localmente.
+model GClickTask {
+  id             Int       @id @default(autoincrement())
+  sourceKey      String    @unique
+
+  status         String    // coluna "Status" (status original do G-Click, informativo)
+  department     String    // "Departamento"
+  subject        String    // "Assunto"
+  competence     String    // "Competência", texto original (ex: "JAN/2026")
+  competenceSort Int?      // ano*12+mês, para ordenação cronológica; null se não parseável
+  clientCode     String?   // extraído do texto de "Cliente", se houver um código no início
+  clientName     String    // "Cliente" (nome, ou o texto inteiro se não houver código)
+  clientStatus   String?   // "Status Cliente"
+  action         String?   // "Ação"
+  goal           String?   // "Meta"
+  dueDate        DateTime? // "Vencimento", parseado
+  dueDateRaw     String?   // texto original do vencimento, para exibir se não for parseável
+
+  completed      Boolean   @default(false)
+  completedAt    DateTime?
+  completedBy    String?   // reservado para quando houver login de usuário
+
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([subject])
+  @@index([clientName])
+  @@index([completed])
+  @@index([dueDate])
+  @@map("gclick_tasks")
+}

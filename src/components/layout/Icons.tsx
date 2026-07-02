@@ -146,6 +146,18 @@ export function IconX({ size = 18, className }: IconProps) {
   );
 }
 
+export function IconKanban({ size = 18, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <line x1="9" y1="4" x2="9" y2="20" />
+      <line x1="15" y1="4" x2="15" y2="20" />
+      <path d="M5.5 9l1 1 2-2" />
+      <path d="M11.5 13l1 1 2-2" />
+    </svg>
+  );
+}
+
 export function IconPortal({ size = 18, className }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -167,6 +179,7 @@ const ICON_MAP: Record<string, React.FC<IconProps>> = {
   archive: IconArchive,
   settings: IconSettings,
   portal: IconPortal,
+  kanban: IconKanban,
 };
 
 export function NavIcon({ name, size = 18 }: { name: string; size?: number }) {

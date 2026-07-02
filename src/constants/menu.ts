@@ -10,6 +10,7 @@ export const MENU_ITEMS: MenuItem[] = [
   { label: 'Dashboard',     href: ROUTES.DASHBOARD,    iconName: 'dashboard' },
   { label: 'Empresas',      href: ROUTES.EMPRESAS,     iconName: 'building' },
   { label: 'Atividades',    href: ROUTES.ATIVIDADES,   iconName: 'activity' },
+  { label: 'Tarefas G-Click', href: ROUTES.TAREFAS_GCLICK, iconName: 'kanban' },
   { label: 'Lembretes',     href: ROUTES.LEMBRETES,    iconName: 'bell' },
   { label: 'Anotações',    href: ROUTES.ANOTACOES,    iconName: 'note' },
   { label: 'Equipe',        href: ROUTES.EQUIPE,       iconName: 'users' },

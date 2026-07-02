@@ -1150,3 +1150,46 @@ tbody tr:last-child td {
     page-break-inside: avoid;
   }
 }
+
+/* ============================================================
+   G-CLICK TASKS
+   ============================================================ */
+.gclick-subject-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  padding: 22px 24px;
+  box-shadow: var(--shadow-sm);
+  transition: opacity 0.28s ease, transform 0.28s ease, box-shadow var(--transition-fast);
+}
+
+.gclick-subject-card:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.gclick-client-card {
+  background: var(--bg-hover);
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  transition: opacity 0.28s ease, transform 0.28s ease, box-shadow var(--transition-fast);
+}
+
+.gclick-client-card:hover {
+  box-shadow: var(--shadow-sm);
+}
+
+.gclick-card-removing {
+  opacity: 0;
+  transform: scale(0.96);
+  pointer-events: none;
+}
+
+@media (max-width: 640px) {
+  .gclick-subject-card {
+    padding: 16px 16px;
+    border-radius: 14px;
+  }
+}

@@ -81,6 +81,16 @@
   /* Activity grid */
   --current-month-bg: rgba(37, 99, 235, 0.05);
 
+  /* G-Click tasks — urgência por vencimento */
+  --gclick-overdue-text: #DC2626;
+  --gclick-overdue-bg: #FEE2E2;
+  --gclick-today-text: #EA580C;
+  --gclick-today-bg: #FFEDD5;
+  --gclick-soon-text: #A16207;
+  --gclick-soon-bg: #FEF9C3;
+  --gclick-ok-text: #16A34A;
+  --gclick-ok-bg: #DCFCE7;
+
   /* Shadows */
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -1px rgba(0, 0, 0, 0.04);
@@ -189,4 +199,14 @@
 
   /* Activity grid */
   --current-month-bg: rgba(96, 165, 250, 0.07);
+
+  /* G-Click tasks — urgência por vencimento */
+  --gclick-overdue-text: #F87171;
+  --gclick-overdue-bg: #3B1F1F;
+  --gclick-today-text: #FB923C;
+  --gclick-today-bg: #3B2210;
+  --gclick-soon-text: #FDE047;
+  --gclick-soon-bg: #3F3512;
+  --gclick-ok-text: #4ADE80;
+  --gclick-ok-bg: #14291E;
 }
