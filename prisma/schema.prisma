@@ -11,6 +11,26 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
+enum Role {
+  ADMIN
+  GESTOR
+  OPERADOR
+  LEITURA
+}
+
+model User {
+  id           Int      @id @default(autoincrement())
+  email        String   @unique
+  name         String
+  passwordHash String
+  role         Role     @default(LEITURA)
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("users")
+}
+
 model SystemConfig {
   id        Int      @id @default(autoincrement())
   key       String   @unique
@@ -51,9 +71,9 @@ model Professional {
   companiesIRRent    Company[] @relation("CompanyIRRent")
   companiesMIT       Company[] @relation("CompanyMIT")
 
-  activityStatuses         ActivityStatus[]        @relation("ActivityResponsible")
-  activityStatusHistories  ActivityStatusHistory[]  @relation("ActivityHistoryResponsible")
-  leaves                   Leave[]
+  activityStatuses        ActivityStatus[]        @relation("ActivityResponsible")
+  activityStatusHistories ActivityStatusHistory[] @relation("ActivityHistoryResponsible")
+  leaves                  Leave[]
 
   @@map("professionals")
 }
@@ -62,8 +82,8 @@ model Leave {
   id             Int          @id @default(autoincrement())
   professionalId Int
   professional   Professional @relation(fields: [professionalId], references: [id], onDelete: Cascade)
-  startDate      String       // YYYY-MM-DD
-  endDate        String       // YYYY-MM-DD
+  startDate      String // YYYY-MM-DD
+  endDate        String // YYYY-MM-DD
   description    String?
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
@@ -89,7 +109,7 @@ model DailyGoal {
   id          Int       @id @default(autoincrement())
   title       String
   description String?
-  date        String    // YYYY-MM-DD
+  date        String // YYYY-MM-DD
   completed   Boolean   @default(false)
   completedAt DateTime?
   createdAt   DateTime  @default(now())
@@ -124,16 +144,16 @@ model Level {
 }
 
 model Obligation {
-  id        Int       @id @default(autoincrement())
-  code      String    @unique
+  id        Int        @id @default(autoincrement())
+  code      String     @unique
   name      String
   group     String?
   type      String
-  order     Int       @default(0)
-  isDefault Boolean   @default(false)
-  active    Boolean   @default(true)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  order     Int        @default(0)
+  isDefault Boolean    @default(false)
+  active    Boolean    @default(true)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
   deadlines Deadline[]
 
   activityStatuses        ActivityStatus[]
@@ -202,23 +222,35 @@ model Company {
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
 
-  level                Level?                @relation(fields: [levelId], references: [id])
-  financialResponsible Professional?         @relation("CompanyFinancial", fields: [financialResponsibleId], references: [id])
-  dpResponsible        Professional?         @relation("CompanyDP", fields: [dpResponsibleId], references: [id])
-  fiscalResponsible    Professional?         @relation("CompanyFiscal", fields: [fiscalResponsibleId], references: [id])
-  analysisResponsible  Professional?         @relation("CompanyAnalysis", fields: [analysisResponsibleId], references: [id])
-  reviewResponsible    Professional?         @relation("CompanyReview", fields: [reviewResponsibleId], references: [id])
-  irRentResponsible    Professional?         @relation("CompanyIRRent", fields: [irRentResponsibleId], references: [id])
-  mitResponsible       Professional?         @relation("CompanyMIT", fields: [mitResponsibleId], references: [id])
-  cellTeam             Team?                 @relation("CompanyCellTeam", fields: [cellTeamId], references: [id], onDelete: SetNull)
-  taxRegimes           CompanyTaxRegime[]
-  activityStatuses     ActivityStatus[]
+  level                   Level?                  @relation(fields: [levelId], references: [id])
+  financialResponsible    Professional?           @relation("CompanyFinancial", fields: [financialResponsibleId], references: [id])
+  dpResponsible           Professional?           @relation("CompanyDP", fields: [dpResponsibleId], references: [id])
+  fiscalResponsible       Professional?           @relation("CompanyFiscal", fields: [fiscalResponsibleId], references: [id])
+  analysisResponsible     Professional?           @relation("CompanyAnalysis", fields: [analysisResponsibleId], references: [id])
+  reviewResponsible       Professional?           @relation("CompanyReview", fields: [reviewResponsibleId], references: [id])
+  irRentResponsible       Professional?           @relation("CompanyIRRent", fields: [irRentResponsibleId], references: [id])
+  mitResponsible          Professional?           @relation("CompanyMIT", fields: [mitResponsibleId], references: [id])
+  cellTeam                Team?                   @relation("CompanyCellTeam", fields: [cellTeamId], references: [id], onDelete: SetNull)
+  taxRegimes              CompanyTaxRegime[]
+  activityStatuses        ActivityStatus[]
   activityStatusHistories ActivityStatusHistory[]
-  closingNotes         ClosingNote[]
-  reminders            Reminder[]
-  portalNotifications  PortalNotification[]
+  closingNotes            ClosingNote[]
+  reminders               Reminder[]
+  portalNotifications     PortalNotification[]
 
   @@index([terminated])
+  // Ordenação padrão de toda listagem de empresas (groupName, corporateName).
+  @@index([groupName, corporateName])
+  @@index([levelId])
+  // FKs de responsável — preparam a filtragem por responsável no banco (Fase 5),
+  // que hoje é feita no cliente sobre o dataset inteiro.
+  @@index([financialResponsibleId])
+  @@index([dpResponsibleId])
+  @@index([fiscalResponsibleId])
+  @@index([analysisResponsibleId])
+  @@index([reviewResponsibleId])
+  @@index([irRentResponsibleId])
+  @@index([mitResponsibleId])
   @@map("companies")
 }
 
@@ -254,7 +286,7 @@ model Reminder {
 
 // month: 0 = annual (SPED ECD/ECF), 1-12 = monthly
 model ActivityStatus {
-  id            Int       @id @default(autoincrement())
+  id            Int      @id @default(autoincrement())
   companyId     Int
   obligationId  Int
   year          Int
@@ -262,8 +294,8 @@ model ActivityStatus {
   status        String
   observation   String?
   responsibleId Int?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   company     Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
   obligation  Obligation    @relation(fields: [obligationId], references: [id])
@@ -292,6 +324,9 @@ model ActivityStatusHistory {
   obligation  Obligation    @relation(fields: [obligationId], references: [id])
   responsible Professional? @relation("ActivityHistoryResponsible", fields: [responsibleId], references: [id])
 
+  // Sem nenhum índice até aqui; a trilha de auditoria é consultada por
+  // empresa/obrigação/período. Sem isto, cada leitura fazia seq scan.
+  @@index([companyId, obligationId, year, month])
   @@map("activity_status_history")
 }
 
@@ -317,12 +352,12 @@ model PortalNotification {
 }
 
 model CompanyTaxRegime {
-  id               Int            @id @default(autoincrement())
+  id               Int      @id @default(autoincrement())
   companyId        Int
   accountingYearId Int
   taxRegimeId      Int
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   company        Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
   accountingYear AccountingYear @relation(fields: [accountingYearId], references: [id])
@@ -338,28 +373,28 @@ model CompanyTaxRegime {
 // ação+meta), permitindo reimportar sem duplicar nem perder o status de
 // conclusão já marcado localmente.
 model GClickTask {
-  id             Int       @id @default(autoincrement())
-  sourceKey      String    @unique
+  id        Int    @id @default(autoincrement())
+  sourceKey String @unique
 
-  status         String    // coluna "Status" (status original do G-Click, informativo)
-  department     String    // "Departamento"
-  subject        String    // "Assunto"
-  competence     String    // "Competência", texto original (ex: "JAN/2026")
-  competenceSort Int?      // ano*12+mês, para ordenação cronológica; null se não parseável
-  clientCode     String?   // extraído do texto de "Cliente", se houver um código no início
-  clientName     String    // "Cliente" (nome, ou o texto inteiro se não houver código)
-  clientStatus   String?   // "Status Cliente"
-  action         String?   // "Ação"
-  goal           String?   // "Meta"
+  status         String // coluna "Status" (status original do G-Click, informativo)
+  department     String // "Departamento"
+  subject        String // "Assunto"
+  competence     String // "Competência", texto original (ex: "JAN/2026")
+  competenceSort Int? // ano*12+mês, para ordenação cronológica; null se não parseável
+  clientCode     String? // extraído do texto de "Cliente", se houver um código no início
+  clientName     String // "Cliente" (nome, ou o texto inteiro se não houver código)
+  clientStatus   String? // "Status Cliente"
+  action         String? // "Ação"
+  goal           String? // "Meta"
   dueDate        DateTime? // "Vencimento", parseado
-  dueDateRaw     String?   // texto original do vencimento, para exibir se não for parseável
+  dueDateRaw     String? // texto original do vencimento, para exibir se não for parseável
 
-  completed      Boolean   @default(false)
-  completedAt    DateTime?
-  completedBy    String?   // reservado para quando houver login de usuário
+  completed   Boolean   @default(false)
+  completedAt DateTime?
+  completedBy String? // reservado para quando houver login de usuário
 
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([subject])
   @@index([clientName])

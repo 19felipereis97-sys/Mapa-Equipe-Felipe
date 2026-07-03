@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import * as svc from '@/services/gclickService';
+import { requirePermission } from '@/lib/authGuard';
 
 export async function GET() {
   try {
@@ -12,6 +13,9 @@ export async function GET() {
 
 export async function DELETE() {
   try {
+    const guard = await requirePermission('clear_data');
+    if (!guard.ok) return guard.response;
+
     await svc.clearAllGClickTasks();
     return NextResponse.json({ success: true });
   } catch (e: unknown) {

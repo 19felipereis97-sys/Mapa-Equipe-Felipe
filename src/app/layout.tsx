@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next';
+import { SessionProvider } from 'next-auth/react';
 import '@/styles/globals.css';
 import { ThemeProvider } from '@/context/ThemeContext';
 import { AppProvider } from '@/context/AppContext';
@@ -46,13 +47,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body>
-        <ThemeProvider>
-          <AppProvider>
-            <ToastProvider>
-              <AppLayout>{children}</AppLayout>
-            </ToastProvider>
-          </AppProvider>
-        </ThemeProvider>
+        <SessionProvider>
+          <ThemeProvider>
+            <AppProvider>
+              <ToastProvider>
+                <AppLayout>{children}</AppLayout>
+              </ToastProvider>
+            </AppProvider>
+          </ThemeProvider>
+        </SessionProvider>
       </body>
     </html>
   );

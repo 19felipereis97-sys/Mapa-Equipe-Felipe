@@ -22,6 +22,18 @@ export function formatDateTime(date: Date | string): string {
   return d.toLocaleString('pt-BR');
 }
 
+/**
+ * Divide um array em pedaços de tamanho fixo. Usado para processar grandes
+ * volumes (importações, bulk de status) em lotes controlados, evitando
+ * segurar conexão do pool por muito tempo ou disparar rajadas de queries.
+ */
+export function chunk<T>(items: T[], size: number): T[][] {
+  if (size <= 0) return [items];
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
+  return out;
+}
+
 export function slugify(text: string): string {
   return text
     .toLowerCase()

@@ -4,6 +4,7 @@ const PDFDocument = require('pdfkit');
 import prisma from '@/lib/prisma';
 import { getEligibleCompaniesForObligation } from '@/services/obligationRulesService';
 import { ANNUAL_OBLIGATIONS } from '@/types/rules';
+import { requirePermission } from '@/lib/authGuard';
 
 /* ─── Constants ─── */
 const MONTHLY_CODES = ['dp','fiscal_simples','fiscal_icms','fiscal_servico','financeiro','analise','revisao','distribuicao_lucros','ir_aluguel','mit','cotas_irpj_csll'] as const;
@@ -143,6 +144,9 @@ function drawStatusPill(doc: Doc, x: number, y: number, label: string, value: nu
 /* ─── Route handler ─── */
 export async function GET(req: NextRequest) {
   try {
+    const guard = await requirePermission('reports');
+    if (!guard.ok) return guard.response;
+
     const url   = new URL(req.url);
     const month = Math.min(12, Math.max(1, parseInt(url.searchParams.get('month') ?? String(new Date().getMonth() + 1))));
     const year  = parseInt(url.searchParams.get('year') ?? String(new Date().getFullYear()));

@@ -1,4 +1,6 @@
 import prisma from '@/lib/prisma';
+import { chunk } from '@/lib/utils';
+import { logProc } from '@/lib/procLog';
 
 /* ─── Obligation code → ID resolution ─────────────────────────────────────────
    Cached in-memory: obligations are static reference data (11 rows, managed
@@ -131,7 +133,22 @@ export async function clearActivityStatus(
   return existing;
 }
 
-/* ─── Bulk upsert ─── */
+/* ─── Bulk upsert (transacional, em lotes) ────────────────────────────────────
+   Antes: Promise.allSettled sobre N itens, cada um com findUnique + upsert +
+   create de histórico = até 3×N queries CONCORRENTES contra o pool do pgbouncer
+   (uma seleção "todas as empresas × 12 meses" chegava a milhares, saturando o
+   pool e degradando o app inteiro).
+
+   Agora: resolve os IDs de obrigação uma vez, e processa em lotes de 200 dentro
+   de UMA transação por lote. Cada lote faz 1 SELECT (status atuais, para saber o
+   que mudou), os upserts do lote e 1 createMany de histórico só para os que
+   realmente mudaram de status — preservando a regra original de auditoria.
+──────────────────────────────────────────────────────────────────────────── */
+const BULK_CHUNK_SIZE = 200;
+
+const statusKey = (x: { companyId: number; obligationId: number; year: number; month: number }) =>
+  `${x.companyId}:${x.obligationId}:${x.year}:${x.month}`;
+
 export async function bulkUpsertActivityStatus(items: Array<{
   companyId: number;
   obligationCode: string;
@@ -141,23 +158,139 @@ export async function bulkUpsertActivityStatus(items: Array<{
   observation: string | null;
   responsibleId?: number | null;
 }>) {
-  const results = await Promise.allSettled(items.map((item) => upsertActivityStatus(item)));
-  const succeeded = results.filter((r) => r.status === 'fulfilled').length;
-  const failed    = results.filter((r) => r.status === 'rejected').length;
+  if (items.length === 0) return { succeeded: 0, failed: 0 };
+  const start = Date.now();
+
+  // Resolve os IDs de obrigação uma vez (não por item).
+  const codes = Array.from(new Set(items.map((i) => i.obligationCode)));
+  const idByCode = new Map<string, number>();
+  for (const code of codes) idByCode.set(code, await resolveObligationId(code));
+
+  const norm = items.map((i) => ({
+    companyId: i.companyId,
+    obligationId: idByCode.get(i.obligationCode)!,
+    year: i.year,
+    month: i.month,
+    status: i.status,
+    observation: i.observation,
+    responsibleId: i.responsibleId ?? null,
+  }));
+
+  let succeeded = 0;
+  let failed = 0;
+
+  for (const c of chunk(norm, BULK_CHUNK_SIZE)) {
+    try {
+      // Status atuais do lote — usa o índice único (companyId,obligationId,year,month).
+      // Consulta por conjuntos (superset) e casa pela chave exata em memória: uma
+      // query indexada em vez de um OR gigante.
+      const existing = await prisma.activityStatus.findMany({
+        where: {
+          companyId: { in: c.map((x) => x.companyId) },
+          obligationId: { in: c.map((x) => x.obligationId) },
+          year: { in: c.map((x) => x.year) },
+          month: { in: c.map((x) => x.month) },
+        },
+        select: { companyId: true, obligationId: true, year: true, month: true, status: true },
+      });
+      const prevStatus = new Map(existing.map((e) => [statusKey(e), e.status]));
+
+      const historyData = c
+        .filter((x) => prevStatus.get(statusKey(x)) !== x.status)
+        .map((x) => ({
+          companyId: x.companyId,
+          obligationId: x.obligationId,
+          year: x.year,
+          month: x.month,
+          previousStatus: prevStatus.get(statusKey(x)) ?? null,
+          newStatus: x.status,
+          observation: x.observation,
+          responsibleId: x.responsibleId,
+        }));
+
+      await prisma.$transaction([
+        ...c.map((x) =>
+          prisma.activityStatus.upsert({
+            where: { companyId_obligationId_year_month: { companyId: x.companyId, obligationId: x.obligationId, year: x.year, month: x.month } },
+            create: { companyId: x.companyId, obligationId: x.obligationId, year: x.year, month: x.month, status: x.status, observation: x.observation, responsibleId: x.responsibleId },
+            update: { status: x.status, observation: x.observation, responsibleId: x.responsibleId },
+          }),
+        ),
+        prisma.activityStatusHistory.createMany({ data: historyData }),
+      ]);
+      succeeded += c.length;
+    } catch (e: unknown) {
+      failed += c.length;
+      logProc({ etapa: 'bulk_upsert_chunk_error', registros: c.length, metadata: { error: e instanceof Error ? e.message : String(e) } });
+    }
+  }
+
+  logProc({ etapa: 'bulk_upsert', registros: items.length, durationMs: Date.now() - start, metadata: { succeeded, failed } });
   return { succeeded, failed };
 }
 
-/* ─── Bulk clear ─── */
+/* ─── Bulk clear (transacional, em lotes) ─── */
 export async function bulkClearActivityStatus(items: Array<{
   companyId: number;
   obligationCode: string;
   year: number;
   month: number;
 }>) {
-  const results = await Promise.allSettled(
-    items.map((item) => clearActivityStatus(item.companyId, item.obligationCode, item.year, item.month)),
-  );
-  const succeeded = results.filter((r) => r.status === 'fulfilled').length;
-  const failed    = results.filter((r) => r.status === 'rejected').length;
+  if (items.length === 0) return { succeeded: 0, failed: 0 };
+  const start = Date.now();
+
+  const codes = Array.from(new Set(items.map((i) => i.obligationCode)));
+  const idByCode = new Map<string, number>();
+  for (const code of codes) idByCode.set(code, await resolveObligationId(code));
+
+  const norm = items.map((i) => ({
+    companyId: i.companyId,
+    obligationId: idByCode.get(i.obligationCode)!,
+    year: i.year,
+    month: i.month,
+  }));
+
+  let succeeded = 0;
+  let failed = 0;
+
+  for (const c of chunk(norm, BULK_CHUNK_SIZE)) {
+    try {
+      const existing = await prisma.activityStatus.findMany({
+        where: {
+          companyId: { in: c.map((x) => x.companyId) },
+          obligationId: { in: c.map((x) => x.obligationId) },
+          year: { in: c.map((x) => x.year) },
+          month: { in: c.map((x) => x.month) },
+        },
+        select: { id: true, companyId: true, obligationId: true, year: true, month: true, status: true, responsibleId: true },
+      });
+      // Só os que casam exatamente com um item do lote.
+      const wanted = new Set(c.map(statusKey));
+      const toDelete = existing.filter((e) => wanted.has(statusKey(e)));
+      if (toDelete.length === 0) { succeeded += c.length; continue; }
+
+      await prisma.$transaction([
+        prisma.activityStatus.deleteMany({ where: { id: { in: toDelete.map((e) => e.id) } } }),
+        prisma.activityStatusHistory.createMany({
+          data: toDelete.map((e) => ({
+            companyId: e.companyId,
+            obligationId: e.obligationId,
+            year: e.year,
+            month: e.month,
+            previousStatus: e.status,
+            newStatus: null,
+            observation: null,
+            responsibleId: e.responsibleId,
+          })),
+        }),
+      ]);
+      succeeded += c.length;
+    } catch (e: unknown) {
+      failed += c.length;
+      logProc({ etapa: 'bulk_clear_chunk_error', registros: c.length, metadata: { error: e instanceof Error ? e.message : String(e) } });
+    }
+  }
+
+  logProc({ etapa: 'bulk_clear', registros: items.length, durationMs: Date.now() - start, metadata: { succeeded, failed } });
   return { succeeded, failed };
 }

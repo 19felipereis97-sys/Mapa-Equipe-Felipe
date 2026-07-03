@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { exportObligationToBuffer, OBLIGATION_LABELS } from '@/services/excelExportService';
+import { requirePermission } from '@/lib/authGuard';
 
 export async function GET(req: NextRequest) {
   try {
+    const guard = await requirePermission('reports');
+    if (!guard.ok) return guard.response;
+
     const { searchParams } = new URL(req.url);
     const obligationCode = searchParams.get('obligation') ?? '';
     const yearParam      = searchParams.get('year');

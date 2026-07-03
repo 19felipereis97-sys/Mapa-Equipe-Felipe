@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import ExcelJS from 'exceljs';
 import prisma from '@/lib/prisma';
 import { createCompany, updateCompany } from '@/services/companyService';
+import { requirePermission } from '@/lib/authGuard';
 
 function parseBool(v: unknown): boolean {
   if (typeof v === 'boolean') return v;
@@ -49,6 +50,9 @@ function parseStartCompetence(v: unknown): { startComp: string | null; opening: 
 
 export async function POST(req: NextRequest) {
   try {
+    const guard = await requirePermission('import');
+    if (!guard.ok) return guard.response;
+
     const formData = await req.formData();
     const file = formData.get('file') as File | null;
     if (!file) return NextResponse.json({ error: 'Arquivo não enviado', success: false }, { status: 400 });

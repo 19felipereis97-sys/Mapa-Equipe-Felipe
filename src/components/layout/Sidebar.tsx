@@ -3,6 +3,7 @@
 import React, { useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useSession, signOut } from 'next-auth/react';
 import { useSidebar } from '@/hooks/useSidebar';
 import { useMobileNav } from '@/hooks/useMobileNav';
 import { useTheme } from '@/hooks/useTheme';
@@ -15,6 +16,7 @@ export function Sidebar() {
   const { isOpen: mobileOpen, close: closeMobileNav } = useMobileNav();
   const { theme, toggleTheme } = useTheme();
   const pathname = usePathname();
+  const { data: session } = useSession();
 
   // Fecha a gaveta mobile automaticamente ao trocar de rota.
   useEffect(() => { closeMobileNav(); }, [pathname, closeMobileNav]);
@@ -117,6 +119,25 @@ export function Sidebar() {
               {theme === 'light' ? 'Tema escuro' : 'Tema claro'}
             </span>
           </button>
+        )}
+
+        {/* Usuário + logout */}
+        {session?.user && (
+          isCollapsed ? (
+            <Tooltip content={`Sair (${session.user.name ?? ''})`} position="right">
+              <button className="theme-toggle-btn" onClick={() => signOut({ callbackUrl: '/login' })} aria-label="Sair">
+                <span className="sidebar-nav-icon" aria-hidden>⎋</span>
+              </button>
+            </Tooltip>
+          ) : (
+            <button className="theme-toggle-btn" onClick={() => signOut({ callbackUrl: '/login' })} aria-label="Sair" title="Sair">
+              <span className="sidebar-nav-icon" aria-hidden>⎋</span>
+              <span className="sidebar-nav-label" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', lineHeight: 1.2 }}>
+                <span>Sair</span>
+                <span style={{ fontSize: 11, opacity: 0.7 }}>{session.user.name} · {(session.user as { role?: string }).role}</span>
+              </span>
+            </button>
+          )
         )}
       </div>
       </aside>

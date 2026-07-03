@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import * as svc from '@/services/activityStatusService';
+import { requirePermission } from '@/lib/authGuard';
 
 /* POST /api/activities/bulk — upsert multiple statuses */
 export async function POST(req: NextRequest) {
   try {
+    const guard = await requirePermission('edit_status');
+    if (!guard.ok) return guard.response;
+
     const body = await req.json();
     const { items } = body as {
       items: Array<{
@@ -30,6 +34,9 @@ export async function POST(req: NextRequest) {
 /* DELETE /api/activities/bulk — clear multiple statuses */
 export async function DELETE(req: NextRequest) {
   try {
+    const guard = await requirePermission('edit_status');
+    if (!guard.ok) return guard.response;
+
     const body = await req.json();
     const { items } = body as {
       items: Array<{

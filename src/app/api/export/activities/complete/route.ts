@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { exportAllObligationsToBuffer } from '@/services/excelExportService';
+import { requirePermission } from '@/lib/authGuard';
 
 export async function GET(req: NextRequest) {
   try {
+    const guard = await requirePermission('reports');
+    if (!guard.ok) return guard.response;
+
     const { searchParams } = new URL(req.url);
     const yearParam      = searchParams.get('year');
     const onlyTerminated = searchParams.get('onlyTerminated') === 'true';
