@@ -163,6 +163,16 @@ export default function AtividadesPage() {
   const hasLoadedRef = useRef(false);
   const [error, setError]                     = useState<string | null>(null);
 
+  // Cache em memória por aba (obrigação+ano+filtros) desta sessão — evita
+  // refazer as 2 requisições de rede toda vez que se volta pra uma aba já
+  // visitada. Ver plano de performance (services/obligationService.ts +
+  // este arquivo) para o contexto completo.
+  const tabCacheRef = useRef<Map<string, { results: EligibleCompanyResult[]; statuses: ActivityStatus[] }>>(new Map());
+  const tabCacheKey = useCallback(
+    (obl: string, yr: string, incTerm: boolean, onlyTerm: boolean) => `${obl}:${yr}:${incTerm}:${onlyTerm}`,
+    []
+  );
+
   const [search, setSearch]                   = useState('');
   const [filterResp, setFilterResp]           = useState('');
   const [filterGroup, setFilterGroup]         = useState('');
@@ -283,32 +293,56 @@ export default function AtividadesPage() {
     try {
       const res = await fetch(`/api/activities?obligationCode=${obl}&year=${yr}`);
       const json = await res.json();
-      if (json.success) setStatuses(json.data ?? []);
+      if (json.success) {
+        const data = json.data ?? [];
+        setStatuses(data);
+        // Mantém o cache da aba em dia após uma edição individual/em lote —
+        // senão trocar de aba e voltar mostraria o estado anterior à edição.
+        const key = tabCacheKey(obl, yr, includeTerminated, onlyTerminated);
+        const cached = tabCacheRef.current.get(key);
+        tabCacheRef.current.set(key, { results: cached?.results ?? [], statuses: data });
+      }
     } catch { /* non-critical */ }
-  }, []);
+  }, [includeTerminated, onlyTerminated, tabCacheKey]);
 
   const doSearch = useCallback(async (obl: string, yr: string, incTerm: boolean, onlyTerm: boolean) => {
     if (!obl || !yr) return;
-    const showInitialLoading = !hasLoadedRef.current;
-    if (showInitialLoading) setLoading(true);
-    else setUpdating(true);
+    const key = tabCacheKey(obl, yr, incTerm, onlyTerm);
+    const cached = tabCacheRef.current.get(key);
+
+    if (cached) {
+      // Já carregado nesta sessão — exibe na hora, sem esperar a rede, e
+      // revalida em segundo plano (barra de "atualizando" discreta) abaixo.
+      setResults(cached.results);
+      setStatuses(cached.statuses);
+      setSelected(new Set());
+      hasLoadedRef.current = true;
+    } else if (!hasLoadedRef.current) {
+      setLoading(true);
+    }
+    setUpdating(true);
     setError(null);
     try {
       const params = new URLSearchParams({ obligation: obl, year: yr, includeTerminated: String(incTerm), onlyTerminated: String(onlyTerm) });
       const [resultsRes] = await Promise.all([fetch(`/api/rules/eligible?${params}`), loadStatuses(obl, yr)]);
       const json = await resultsRes.json();
       if (!json.success) throw new Error(json.error);
-      setResults(json.data ?? []);
-      setSelected(new Set());
+      const newResults = json.data ?? [];
+      setResults(newResults);
+      if (!cached) setSelected(new Set());
+      const cachedStatuses = tabCacheRef.current.get(key)?.statuses ?? [];
+      tabCacheRef.current.set(key, { results: newResults, statuses: cachedStatuses });
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Erro ao buscar empresas');
-      setResults([]);
+      if (!cached) {
+        setError(e instanceof Error ? e.message : 'Erro ao buscar empresas');
+        setResults([]);
+      }
     } finally {
       hasLoadedRef.current = true;
       setLoading(false);
       setUpdating(false);
     }
-  }, [loadStatuses]);
+  }, [loadStatuses, tabCacheKey]);
 
   useEffect(() => {
     if (obligation && year) doSearch(obligation, year, includeTerminated, onlyTerminated);

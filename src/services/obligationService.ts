@@ -21,15 +21,32 @@ const DEFAULT_OBLIGATIONS = [
 // corretos — necessário tanto para bancos provisionados sem `prisma db seed` quanto
 // para quando esta lista ganha itens novos depois que o banco já tinha sido semeado.
 // `name`/`group`/`type`/`order` não são editáveis em nenhuma tela, então reafirmá-los
-// sempre é seguro; `active` fica de fora para não sobrescrever eventual customização.
+// é seguro; `active` fica de fora para não sobrescrever eventual customização.
+//
+// Faz só 1 leitura primeiro e compara em memória — no caso comum (nada mudou)
+// isso evita 14 upserts sequenciais no Postgres remoto a cada chamada de
+// getObligations() (disparada, por exemplo, toda vez que a tela de
+// Configurações é aberta), que deixava a navegação visivelmente lenta.
 async function ensureDefaultObligations() {
-  for (const ob of DEFAULT_OBLIGATIONS) {
-    await prisma.obligation.upsert({
-      where: { code: ob.code },
-      update: { name: ob.name, group: ob.group, type: ob.type, order: ob.order },
-      create: { ...ob, isDefault: true, active: true },
-    });
-  }
+  const existing = await prisma.obligation.findMany({
+    where: { code: { in: DEFAULT_OBLIGATIONS.map((o) => o.code) } },
+    select: { code: true, name: true, group: true, type: true, order: true },
+  });
+  const existingByCode = new Map(existing.map((o) => [o.code, o]));
+
+  const pending = DEFAULT_OBLIGATIONS.filter((ob) => {
+    const current = existingByCode.get(ob.code);
+    if (!current) return true;
+    return current.name !== ob.name || current.group !== ob.group || current.type !== ob.type || current.order !== ob.order;
+  });
+
+  if (pending.length === 0) return;
+
+  await Promise.all(pending.map((ob) => prisma.obligation.upsert({
+    where: { code: ob.code },
+    update: { name: ob.name, group: ob.group, type: ob.type, order: ob.order },
+    create: { ...ob, isDefault: true, active: true },
+  })));
 }
 
 export async function getObligations(activeOnly = false) {

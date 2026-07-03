@@ -228,6 +228,10 @@ export default function RescindadasPage() {
   const [updating, setUpdating]         = useState(false);
   const hasLoadedRef = useRef(false);
   const [error, setError]               = useState<string | null>(null);
+
+  // Cache em memória por aba (obrigação+ano) desta sessão — evita refazer as
+  // 2 requisições de rede toda vez que se volta pra uma aba já visitada.
+  const tabCacheRef = useRef<Map<string, { results: EligibleCompanyResult[]; statuses: ActivityStatus[] }>>(new Map());
   const [terminatedCompanies, setTerminatedCompanies] = useState<Company[]>([]);
   const [companiesLoading, setCompaniesLoading] = useState(true);
   const [companySearch, setCompanySearch] = useState('');
@@ -278,27 +282,50 @@ export default function RescindadasPage() {
     try {
       const res = await fetch(`/api/activities?obligationCode=${obl}&year=${yr}`);
       const json = await res.json();
-      if (json.success) setStatuses(json.data ?? []);
+      if (json.success) {
+        const data = json.data ?? [];
+        setStatuses(data);
+        // Mantém o cache da aba em dia após uma edição — senão trocar de aba
+        // e voltar mostraria o estado anterior à edição.
+        const key = `${obl}:${yr}`;
+        const cached = tabCacheRef.current.get(key);
+        tabCacheRef.current.set(key, { results: cached?.results ?? [], statuses: data });
+      }
     } catch { /* non-critical */ }
   }, []);
 
   /* ─── Load companies (onlyTerminated = true) ─── */
   const doSearch = useCallback(async (obl: string, yr: string) => {
     if (!obl || !yr) return;
-    const showInitialLoading = !hasLoadedRef.current;
-    if (showInitialLoading) setLoading(true);
-    else setUpdating(true);
+    const key = `${obl}:${yr}`;
+    const cached = tabCacheRef.current.get(key);
+
+    if (cached) {
+      // Já carregado nesta sessão — exibe na hora e revalida em segundo plano.
+      setResults(cached.results);
+      setStatuses(cached.statuses);
+      setSelected(new Set());
+      hasLoadedRef.current = true;
+    } else if (!hasLoadedRef.current) {
+      setLoading(true);
+    }
+    setUpdating(true);
     setError(null);
     try {
       const params = new URLSearchParams({ obligation: obl, year: yr, onlyTerminated: 'true', includeTerminated: 'false' });
       const [resultsRes] = await Promise.all([fetch(`/api/rules/eligible?${params}`), loadStatuses(obl, yr)]);
       const json = await resultsRes.json();
       if (!json.success) throw new Error(json.error);
-      setResults(json.data ?? []);
-      setSelected(new Set());
+      const newResults = json.data ?? [];
+      setResults(newResults);
+      if (!cached) setSelected(new Set());
+      const cachedStatuses = tabCacheRef.current.get(key)?.statuses ?? [];
+      tabCacheRef.current.set(key, { results: newResults, statuses: cachedStatuses });
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Erro ao buscar empresas rescindidas');
-      setResults([]);
+      if (!cached) {
+        setError(e instanceof Error ? e.message : 'Erro ao buscar empresas rescindidas');
+        setResults([]);
+      }
     } finally {
       hasLoadedRef.current = true;
       setLoading(false);
