@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createHash } from 'crypto';
 import { parseGClickWorkbook } from '@/lib/gclickParser';
 import { importGClickTasks } from '@/services/gclickService';
 import { requirePermission } from '@/lib/authGuard';
+import { getStorage } from '@/lib/storage';
+import prisma from '@/lib/prisma';
 
 export async function POST(req: NextRequest) {
   try {
@@ -15,6 +18,29 @@ export async function POST(req: NextRequest) {
     }
 
     const buffer = await file.arrayBuffer();
+
+    // Guarda o arquivo original (rastreabilidade/auditoria) antes de processar.
+    // Não bloqueia a importação se o storage falhar — só registra.
+    const bytes = Buffer.from(buffer);
+    const hash = createHash('sha256').update(bytes).digest('hex');
+    try {
+      const storagePath = `imports/gclick/${hash}.xlsx`;
+      await getStorage().put(storagePath, bytes, file.type || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      const userId = Number(guard.session.user.id);
+      await prisma.arquivoImportado.create({
+        data: {
+          nomeOriginal: file.name || 'gclick.xlsx',
+          hash,
+          tamanho: bytes.length,
+          tipo: 'gclick',
+          mimeType: file.type || null,
+          storagePath,
+          userId: Number.isInteger(userId) ? userId : null,
+          status: 'processado',
+        },
+      });
+    } catch { /* rastreabilidade é best-effort — segue a importação */ }
+
     const parsed = await parseGClickWorkbook(buffer);
 
     if (parsed.missingColumns.length > 0) {
