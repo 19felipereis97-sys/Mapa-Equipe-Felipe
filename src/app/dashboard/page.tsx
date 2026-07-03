@@ -266,32 +266,43 @@ export default function DashboardPage() {
 
   const [data,    setData]    = useState<DashboardSummary | null>(null);
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const hasLoadedRef = useRef(false);
+  const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [error,   setError]   = useState<string | null>(null);
 
   useEffect(() => {
     if (activeYear) setYear(String(activeYear.year));
   }, [activeYear]);
 
-  const load = useCallback(async (m: number, y: string) => {
+  const load = useCallback(async (m: number, y: string, silent = false) => {
     if (!y) return;
-    const showInitialLoading = !hasLoadedRef.current;
+    const showInitialLoading = !hasLoadedRef.current && !silent;
     if (showInitialLoading) setLoading(true);
+    if (!showInitialLoading) setRefreshing(true);
     setError(null);
     try {
       const res  = await fetch(`/api/dashboard?month=${m}&year=${y}`);
       const json = await res.json();
       if (!json.success) throw new Error(json.error);
       setData(json.data);
+      // Snapshot em recálculo → re-consulta em segundo plano para pegar a versão
+      // atualizada assim que o IndicatorsAgent terminar (sem travar a tela).
+      if (pollRef.current) { clearTimeout(pollRef.current); pollRef.current = null; }
+      if (json.meta?.pending) {
+        pollRef.current = setTimeout(() => { void load(m, y, true); }, 3000);
+      }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Erro ao carregar dashboard');
     } finally {
       hasLoadedRef.current = true;
       if (showInitialLoading) setLoading(false);
+      setRefreshing(false);
     }
   }, []);
 
   useEffect(() => { if (year) load(month, year); }, [month, year, load]);
+  useEffect(() => () => { if (pollRef.current) clearTimeout(pollRef.current); }, []);
 
   /* ─── KPI colors ─── */
   const completionColor = !data ? 'var(--text-primary)'
@@ -314,7 +325,10 @@ export default function DashboardPage() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20, gap: 16, flexWrap: 'wrap' }}>
         <div>
           <h1 className="page-title">Dashboard</h1>
-          <p className="page-subtitle">Visão geral das atividades</p>
+          <p className="page-subtitle">
+            Visão geral das atividades
+            {refreshing && <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--color-primary)' }}>· atualizando…</span>}
+          </p>
         </div>
         <div className="no-print" style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           <select className="form-select" style={{ width: 140, height: 34, fontSize: 'var(--font-size-sm)' }}

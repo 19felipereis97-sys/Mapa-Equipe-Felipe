@@ -1,6 +1,7 @@
 import prisma from '@/lib/prisma';
 import { chunk } from '@/lib/utils';
 import { logProc } from '@/lib/procLog';
+import { scheduleIndicatorRecompute } from '@/services/indicatorService';
 
 /* ─── Obligation code → ID resolution ─────────────────────────────────────────
    Cached in-memory: obligations are static reference data (11 rows, managed
@@ -95,6 +96,7 @@ export async function upsertActivityStatus(data: {
     });
   }
 
+  scheduleIndicatorRecompute(month, year, 'status-upsert');
   return result;
 }
 
@@ -130,6 +132,7 @@ export async function clearActivityStatus(
     },
   });
 
+  scheduleIndicatorRecompute(month, year, 'status-clear');
   return existing;
 }
 
@@ -225,6 +228,12 @@ export async function bulkUpsertActivityStatus(items: Array<{
     }
   }
 
+  // Agenda o recálculo dos indicadores uma vez por (ano, mês) distinto tocado.
+  for (const key of Array.from(new Set(norm.map((x) => `${x.year}:${x.month}`)))) {
+    const [y, m] = key.split(':').map(Number);
+    scheduleIndicatorRecompute(m, y, 'bulk-upsert');
+  }
+
   logProc({ etapa: 'bulk_upsert', registros: items.length, durationMs: Date.now() - start, metadata: { succeeded, failed } });
   return { succeeded, failed };
 }
@@ -289,6 +298,11 @@ export async function bulkClearActivityStatus(items: Array<{
       failed += c.length;
       logProc({ etapa: 'bulk_clear_chunk_error', registros: c.length, metadata: { error: e instanceof Error ? e.message : String(e) } });
     }
+  }
+
+  for (const key of Array.from(new Set(norm.map((x) => `${x.year}:${x.month}`)))) {
+    const [y, m] = key.split(':').map(Number);
+    scheduleIndicatorRecompute(m, y, 'bulk-clear');
   }
 
   logProc({ etapa: 'bulk_clear', registros: items.length, durationMs: Date.now() - start, metadata: { succeeded, failed } });

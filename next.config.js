@@ -6,6 +6,9 @@ const nextConfig = {
   // pdfkit uses Node.js built-ins (fs, zlib, stream) — must not be bundled by webpack
   experimental: {
     serverComponentsExternalPackages: ['pdfkit'],
+    // Habilita src/instrumentation.ts (register()) — inicia o worker in-process
+    // no boot do servidor Node (Next 14 exige o flag; no 15 é padrão).
+    instrumentationHook: true,
   },
 };
 
