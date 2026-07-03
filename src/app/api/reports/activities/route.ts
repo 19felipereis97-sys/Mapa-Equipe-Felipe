@@ -6,6 +6,9 @@ import { getEligibleCompaniesForObligation } from '@/services/obligationRulesSer
 import { ANNUAL_OBLIGATIONS } from '@/types/rules';
 import { requirePermission } from '@/lib/authGuard';
 
+// Rota de API que lê a sessão (headers) e o banco — nunca deve ser pré-renderizada.
+export const dynamic = 'force-dynamic';
+
 /* ─── Constants ─── */
 const MONTHLY_CODES = ['dp','fiscal_simples','fiscal_icms','fiscal_servico','financeiro','analise','revisao','distribuicao_lucros','ir_aluguel','mit','cotas_irpj_csll'] as const;
 const ALL_CODES     = [...MONTHLY_CODES];

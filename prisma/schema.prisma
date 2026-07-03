@@ -402,3 +402,160 @@ model GClickTask {
   @@index([dueDate])
   @@map("gclick_tasks")
 }
+
+// ─── FASE 2 — Persistência de tarefas, resultados e observabilidade ───
+// Tabelas de suporte à fila (worker loop Postgres) e ao pré-processamento.
+// Nesta fase são apenas criadas; os agents/worker que as preenchem vêm na Fase 3.
+
+enum TaskStatus {
+  AGUARDANDO
+  PROCESSANDO
+  CONCLUIDO
+  CONCLUIDO_COM_ALERTAS
+  ERRO
+  CANCELADO
+  PENDENTE_REVISAO
+}
+
+// Fila de processamento pesado. O worker seleciona a próxima tarefa AGUARDANDO
+// com FOR UPDATE SKIP LOCKED, ordenando por prioridade (menor = mais urgente) e
+// data de criação. tipo é string livre (GCLICK_IMPORT, REPORT_PDF, INDICATORS…)
+// para não exigir migration a cada novo agent.
+model TarefaProcessamento {
+  id                   Int        @id @default(autoincrement())
+  tipo                 String
+  status               TaskStatus @default(AGUARDANDO)
+  prioridade           Int        @default(100) // menor = mais urgente
+  params               Json?
+  resultRef            String? // storagePath / id de snapshot / id de relatório
+  mensagemUsuario      String?
+  userId               Int?
+  tentativas           Int        @default(0)
+  maxTentativas        Int        @default(3)
+  proximaTentativaEm   DateTime?
+  lockedBy             String? // id do worker que reservou a tarefa
+  lockedAt             DateTime?
+  erroResumo           String?
+  erroDetalhado        String?
+  registrosProcessados Int?
+  durationMs           Int?
+  createdAt            DateTime   @default(now())
+  startedAt            DateTime?
+  finishedAt           DateTime?
+  updatedAt            DateTime   @updatedAt
+
+  logs  LogProcessamento[]
+  erros ErroProcessamento[]
+
+  @@index([status, prioridade, createdAt])
+  @@index([tipo])
+  @@index([userId])
+  @@map("tarefas_processamento")
+}
+
+// Rastreabilidade do arquivo original importado (antes de qualquer processamento).
+// hash permite detectar reimportação do mesmo arquivo.
+model ArquivoImportado {
+  id           Int      @id @default(autoincrement())
+  nomeOriginal String
+  hash         String
+  tamanho      Int
+  tipo         String // gclick | empresas | portais
+  mimeType     String?
+  storagePath  String?
+  userId       Int?
+  status       String   @default("recebido")
+  createdAt    DateTime @default(now())
+
+  @@index([hash])
+  @@index([userId])
+  @@index([tipo])
+  @@map("arquivos_importados")
+}
+
+// Snapshot do dashboard por período. chave ex.: "dashboard:2026:7".
+model IndicadorProcessado {
+  id                  Int      @id @default(autoincrement())
+  chave               String   @unique
+  ano                 Int
+  mes                 Int
+  payload             Json
+  recalculationReason String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([ano, mes])
+  @@map("indicadores_processados")
+}
+
+// Grupos/cards pré-processados (G-Click, grade de atividades). chave identifica
+// o recorte; versao/sourceRef ajudam a invalidar quando a origem muda.
+model CardProcessado {
+  id        Int      @id @default(autoincrement())
+  chave     String   @unique
+  tipo      String
+  payload   Json
+  versao    Int      @default(1)
+  sourceRef String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tipo])
+  @@map("cards_processados")
+}
+
+// Relatórios (PDF/Excel) gerados em background e salvos em storage.
+model RelatorioGerado {
+  id          Int        @id @default(autoincrement())
+  tipo        String
+  filtros     Json?
+  storagePath String?
+  status      TaskStatus @default(AGUARDANDO)
+  userId      Int?
+  expiresAt   DateTime?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@index([tipo])
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("relatorios_gerados")
+}
+
+// Log estruturado por etapa de processamento. taskId nulo = log fora de uma
+// tarefa da fila (ex.: bulk inline).
+model LogProcessamento {
+  id                   Int      @id @default(autoincrement())
+  taskId               Int?
+  etapa                String
+  mensagem             String?
+  durationMs           Int?
+  registrosProcessados Int?
+  metadata             Json?
+  createdAt            DateTime @default(now())
+
+  task TarefaProcessamento? @relation(fields: [taskId], references: [id], onDelete: SetNull)
+
+  @@index([taskId])
+  @@index([etapa])
+  @@index([createdAt])
+  @@map("logs_processamento")
+}
+
+// Erros técnicos e falhas definitivas.
+model ErroProcessamento {
+  id            Int      @id @default(autoincrement())
+  taskId        Int?
+  etapa         String
+  erroResumo    String
+  erroDetalhado String?
+  stack         String?
+  metadata      Json?
+  createdAt     DateTime @default(now())
+
+  task TarefaProcessamento? @relation(fields: [taskId], references: [id], onDelete: SetNull)
+
+  @@index([taskId])
+  @@index([etapa])
+  @@map("erros_processamento")
+}
