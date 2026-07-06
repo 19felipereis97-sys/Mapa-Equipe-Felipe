@@ -11,6 +11,7 @@ export const ROUTES = {
   PORTAIS_ELETRONICOS: '/portais-eletronicos',
   TAREFAS_GCLICK: '/tarefas-gclick',
   CONFIGURACOES: '/configuracoes',
+  CONTA: '/conta',
 } as const;
 
 export type AppRoute = (typeof ROUTES)[keyof typeof ROUTES];

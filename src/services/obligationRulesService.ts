@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import type {
   EligibilityParams,
@@ -23,6 +24,49 @@ const _companyCache = new Map<string, CacheEntry>();
 
 export function invalidateCompanyCache(): void {
   _companyCache.clear();
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   CACHE PERSISTENTE DA ELEGIBILIDADE (serverless-friendly)
+   O motor é computado uma vez por (obrigação, ano, filtros) e o resultado é
+   gravado em cards_processados (tipo 'eligible'). Em serverless o cache em
+   memória não sobrevive entre invocações; este persiste no banco. É invalidado
+   ao mudar qualquer empresa (onde a elegibilidade realmente muda) e tem um TTL
+   de segurança para mudanças cosméticas (renome de responsável/nível/tributação).
+   Exceção: cotas_irpj_csll depende de status salvos → nunca cacheado.
+───────────────────────────────────────────────────────────────────────────── */
+const ELIGIBILITY_TTL_MS = 15 * 60 * 1000;
+
+export async function invalidateEligibilityCache(): Promise<void> {
+  try {
+    await prisma.cardProcessado.deleteMany({ where: { tipo: 'eligible' } });
+  } catch { /* não crítico */ }
+}
+
+export async function getEligibleCompaniesCached(
+  params: EligibilityParams,
+): Promise<EligibleCompanyResult[]> {
+  const { obligationCode, year, includeTerminated = false, onlyTerminated = false } = params;
+
+  // Cotas depende de status → sempre fresco.
+  if (obligationCode === 'cotas_irpj_csll') {
+    return getEligibleCompaniesForObligation(params);
+  }
+
+  const chave = `eligible:${obligationCode}:${year}:${includeTerminated}:${onlyTerminated}`;
+  const cached = await prisma.cardProcessado.findUnique({ where: { chave } });
+  if (cached && Date.now() - cached.updatedAt.getTime() < ELIGIBILITY_TTL_MS) {
+    return cached.payload as unknown as EligibleCompanyResult[];
+  }
+
+  const result = await getEligibleCompaniesForObligation(params);
+  const payload = result as unknown as Prisma.InputJsonValue;
+  await prisma.cardProcessado.upsert({
+    where: { chave },
+    create: { chave, tipo: 'eligible', payload, sourceRef: obligationCode },
+    update: { payload },
+  });
+  return result;
 }
 
 const COMPANY_INCLUDE = {

@@ -121,10 +121,29 @@ export function Sidebar() {
           </button>
         )}
 
-        {/* Usuário + logout */}
+        {/* Minha conta */}
         {session?.user && (
           isCollapsed ? (
-            <Tooltip content={`Sair (${session.user.name ?? ''})`} position="right">
+            <Tooltip content={`Minha conta (${session.user.name ?? ''})`} position="right">
+              <Link href="/conta" className="theme-toggle-btn" aria-label="Minha conta">
+                <span className="sidebar-nav-icon" aria-hidden>👤</span>
+              </Link>
+            </Tooltip>
+          ) : (
+            <Link href="/conta" className="theme-toggle-btn" title="Minha conta" style={{ textDecoration: 'none' }}>
+              <span className="sidebar-nav-icon" aria-hidden>👤</span>
+              <span className="sidebar-nav-label" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', lineHeight: 1.2 }}>
+                <span>{session.user.name}</span>
+                <span style={{ fontSize: 11, opacity: 0.7 }}>{(session.user as { role?: string }).role}</span>
+              </span>
+            </Link>
+          )
+        )}
+
+        {/* Sair */}
+        {session?.user && (
+          isCollapsed ? (
+            <Tooltip content="Sair" position="right">
               <button className="theme-toggle-btn" onClick={() => signOut({ callbackUrl: '/login' })} aria-label="Sair">
                 <span className="sidebar-nav-icon" aria-hidden>⎋</span>
               </button>
@@ -132,10 +151,7 @@ export function Sidebar() {
           ) : (
             <button className="theme-toggle-btn" onClick={() => signOut({ callbackUrl: '/login' })} aria-label="Sair" title="Sair">
               <span className="sidebar-nav-icon" aria-hidden>⎋</span>
-              <span className="sidebar-nav-label" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', lineHeight: 1.2 }}>
-                <span>Sair</span>
-                <span style={{ fontSize: 11, opacity: 0.7 }}>{session.user.name} · {(session.user as { role?: string }).role}</span>
-              </span>
+              <span className="sidebar-nav-label">Sair</span>
             </button>
           )
         )}

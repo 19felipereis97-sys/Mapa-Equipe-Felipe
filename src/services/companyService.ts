@@ -1,5 +1,5 @@
 import prisma from '@/lib/prisma';
-import { invalidateCompanyCache } from './obligationRulesService';
+import { invalidateCompanyCache, invalidateEligibilityCache } from './obligationRulesService';
 
 const INCLUDE = {
   level: true,
@@ -96,6 +96,7 @@ export async function createCompany(data: CompanyInput) {
   const company = await prisma.company.create({ data: fields as Parameters<typeof prisma.company.create>[0]['data'] });
   if (taxRegimes && taxRegimes.length > 0) await saveTaxRegimes(company.id, taxRegimes);
   invalidateCompanyCache();
+  await invalidateEligibilityCache();
   return prisma.company.findUniqueOrThrow({ where: { id: company.id }, include: INCLUDE });
 }
 
@@ -105,22 +106,26 @@ export async function updateCompany(id: number, data: Partial<CompanyInput>) {
   await prisma.company.update({ where: { id }, data: fields as Parameters<typeof prisma.company.update>[0]['data'] });
   if (taxRegimes !== undefined) await saveTaxRegimes(id, taxRegimes);
   invalidateCompanyCache();
+  await invalidateEligibilityCache();
   return prisma.company.findUniqueOrThrow({ where: { id }, include: INCLUDE });
 }
 
 export async function deleteCompany(id: number) {
   await prisma.company.delete({ where: { id } });
   invalidateCompanyCache();
+  await invalidateEligibilityCache();
 }
 
 export async function deleteCompanies(ids: number[]) {
   await prisma.company.deleteMany({ where: { id: { in: ids } } });
   invalidateCompanyCache();
+  await invalidateEligibilityCache();
 }
 
 export async function revertTermination(id: number) {
   const result = await updateCompany(id, { terminated: false, terminationMonth: null });
   invalidateCompanyCache();
+  await invalidateEligibilityCache();
   return result;
 }
 

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getEligibleCompaniesForObligation } from '@/services/obligationRulesService';
+import { getEligibleCompaniesCached } from '@/services/obligationRulesService';
 
 export async function GET(req: NextRequest) {
   try {
@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Ano inválido', success: false }, { status: 400 });
     }
 
-    const data = await getEligibleCompaniesForObligation({
+    const data = await getEligibleCompaniesCached({
       obligationCode,
       year,
       includeTerminated,
