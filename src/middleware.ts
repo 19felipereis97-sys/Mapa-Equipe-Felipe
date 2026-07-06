@@ -32,6 +32,6 @@ export default auth((req) => {
 // Protege tudo, exceto assets estáticos e ícones/manifest do PWA.
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|icons/|manifest.json|apple-touch-icon.png|robots.txt).*)',
+    '/((?!api/health|_next/static|_next/image|favicon.ico|icons/|manifest.json|apple-touch-icon.png|robots.txt).*)',
   ],
 };
