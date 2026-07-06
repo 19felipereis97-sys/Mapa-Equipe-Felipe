@@ -1,7 +1,7 @@
 import prisma from '@/lib/prisma';
 import { chunk } from '@/lib/utils';
 import { logProc } from '@/lib/procLog';
-import { scheduleIndicatorRecompute } from '@/services/indicatorService';
+import { invalidateIndicatorSnapshot } from '@/services/indicatorService';
 
 /* ─── Obligation code → ID resolution ─────────────────────────────────────────
    Cached in-memory: obligations are static reference data (11 rows, managed
@@ -96,7 +96,7 @@ export async function upsertActivityStatus(data: {
     });
   }
 
-  scheduleIndicatorRecompute(month, year, 'status-upsert');
+  await invalidateIndicatorSnapshot(month, year);
   return result;
 }
 
@@ -132,7 +132,7 @@ export async function clearActivityStatus(
     },
   });
 
-  scheduleIndicatorRecompute(month, year, 'status-clear');
+  await invalidateIndicatorSnapshot(month, year);
   return existing;
 }
 
@@ -228,10 +228,10 @@ export async function bulkUpsertActivityStatus(items: Array<{
     }
   }
 
-  // Agenda o recálculo dos indicadores uma vez por (ano, mês) distinto tocado.
+  // Invalida o snapshot uma vez por (ano, mês) distinto tocado.
   for (const key of Array.from(new Set(norm.map((x) => `${x.year}:${x.month}`)))) {
     const [y, m] = key.split(':').map(Number);
-    scheduleIndicatorRecompute(m, y, 'bulk-upsert');
+    await invalidateIndicatorSnapshot(m, y);
   }
 
   logProc({ etapa: 'bulk_upsert', registros: items.length, durationMs: Date.now() - start, metadata: { succeeded, failed } });
@@ -302,7 +302,7 @@ export async function bulkClearActivityStatus(items: Array<{
 
   for (const key of Array.from(new Set(norm.map((x) => `${x.year}:${x.month}`)))) {
     const [y, m] = key.split(':').map(Number);
-    scheduleIndicatorRecompute(m, y, 'bulk-clear');
+    await invalidateIndicatorSnapshot(m, y);
   }
 
   logProc({ etapa: 'bulk_clear', registros: items.length, durationMs: Date.now() - start, metadata: { succeeded, failed } });

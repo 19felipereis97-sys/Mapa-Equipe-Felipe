@@ -135,44 +135,16 @@ function downloadBlob(blob: Blob, filename: string): void {
   URL.revokeObjectURL(objectUrl);
 }
 
-/* ─── Task polling ─── */
-async function pollTaskUntilDone(taskId: number, intervalMs = 1500, timeoutMs = 180000): Promise<{ resultRef: string | null }> {
-  const start = Date.now();
-  while (Date.now() - start < timeoutMs) {
-    const res = await fetch(`/api/tasks/${taskId}`);
-    const json = await res.json();
-    if (!json.success) throw new Error(json.error ?? 'Erro ao consultar tarefa');
-    const st = json.data.status as string;
-    if (st === 'CONCLUIDO' || st === 'CONCLUIDO_COM_ALERTAS') return { resultRef: json.data.resultRef };
-    if (st === 'ERRO')      throw new Error(json.data.erroResumo ?? 'Falha ao gerar relatório');
-    if (st === 'CANCELADO') throw new Error('Tarefa cancelada');
-    await new Promise((r) => setTimeout(r, intervalMs));
+/* ─── Excel: gera e baixa (rota síncrona, streaming direto) ─────────────────
+   Modelo serverless (Vercel): a geração roda no próprio request e o arquivo é
+   transmitido de volta. Para a escala atual é rápido; não depende de worker. */
+async function generateExcelReport(url: string, filename: string): Promise<void> {
+  const res = await fetch(url);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Erro ao gerar Excel' }));
+    throw new Error(err.error ?? 'Erro ao gerar Excel');
   }
-  throw new Error('Tempo esgotado ao gerar relatório');
-}
-
-/* ─── Excel: gera em background (fila), acompanha e baixa quando pronto ─── */
-async function generateExcelReport(
-  body: { kind: 'excel_single' | 'excel_complete'; year: number; obligation?: string; onlyTerminated: boolean },
-  filename: string,
-): Promise<void> {
-  const res = await fetch('/api/reports/excel', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  const json = await res.json();
-  if (!json.success) throw new Error(json.error ?? 'Erro ao solicitar relatório');
-
-  const { resultRef } = await pollTaskUntilDone(json.data.taskId);
-  if (!resultRef) throw new Error('Relatório sem referência de download');
-
-  const dl = await fetch(`/api/reports/${resultRef}/download`);
-  if (!dl.ok) {
-    const err = await dl.json().catch(() => ({ error: 'Erro ao baixar relatório' }));
-    throw new Error(err.error ?? 'Erro ao baixar relatório');
-  }
-  downloadBlob(await dl.blob(), filename);
+  downloadBlob(await res.blob(), filename);
 }
 
 /* ─── LocalStorage keys ─── */
@@ -273,10 +245,8 @@ export default function AtividadesPage() {
     if (!year || !obligation) return;
     setExcelLoading(true);
     try {
-      await generateExcelReport(
-        { kind: 'excel_single', year: Number(year), obligation, onlyTerminated },
-        `${obligation}_${year}.xlsx`,
-      );
+      const params = new URLSearchParams({ obligation, year, onlyTerminated: onlyTerminated ? 'true' : 'false' });
+      await generateExcelReport(`/api/export/activities?${params}`, `${obligation}_${year}.xlsx`);
       addToast({ type: 'success', message: 'Excel gerado com sucesso.' });
     } catch (e: unknown) {
       addToast({ type: 'error', message: e instanceof Error ? e.message : 'Erro ao gerar Excel' });
@@ -287,10 +257,8 @@ export default function AtividadesPage() {
     if (!year) return;
     setExcelCompleteLoading(true);
     try {
-      await generateExcelReport(
-        { kind: 'excel_complete', year: Number(year), onlyTerminated },
-        `atividades_completo_${year}.xlsx`,
-      );
+      const params = new URLSearchParams({ year, onlyTerminated: onlyTerminated ? 'true' : 'false' });
+      await generateExcelReport(`/api/export/activities/complete?${params}`, `atividades_completo_${year}.xlsx`);
       addToast({ type: 'success', message: 'Excel completo gerado com sucesso.' });
     } catch (e: unknown) {
       addToast({ type: 'error', message: e instanceof Error ? e.message : 'Erro ao gerar Excel completo' });

@@ -91,7 +91,10 @@ async function scheduleCleanup(): Promise<void> {
 
 export function startWorker(): void {
   if (started) return;
-  if (process.env.WORKER_ENABLED === 'false') { log('desabilitado (WORKER_ENABLED=false)'); return; }
+  // Desligado por padrão: em serverless (Vercel) não há processo sempre-ligado,
+  // então o loop não funcionaria. Indicadores/relatórios rodam inline no request.
+  // Opt-in (WORKER_ENABLED=true) só faz sentido num container dedicado/cron.
+  if (process.env.WORKER_ENABLED !== 'true') { return; }
   started = true;
   log('iniciado', { workerId: WORKER_ID, pollMs: POLL_MS, tipos: Object.keys(handlers) });
 

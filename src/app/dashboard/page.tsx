@@ -269,7 +269,6 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const hasLoadedRef = useRef(false);
-  const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [error,   setError]   = useState<string | null>(null);
 
   useEffect(() => {
@@ -286,16 +285,7 @@ export default function DashboardPage() {
       const res  = await apiFetch(`/api/dashboard?month=${m}&year=${y}`);
       const json = await res.json();
       if (!json.success) throw new Error(json.error);
-      // data pode vir null quando o snapshot ainda não foi calculado (cold-miss):
-      // o request enfileirou o cálculo e respondeu "pendente". Mantemos o loading
-      // e fazemos polling rápido até o IndicatorsAgent gravar o snapshot.
-      const pending = !!json.meta?.pending;
-      if (json.data) setData(json.data);
-      if (pollRef.current) { clearTimeout(pollRef.current); pollRef.current = null; }
-      if (pending) {
-        // sem dados ainda → mantém spinner; com dados → só revalida discreto
-        pollRef.current = setTimeout(() => { void load(m, y, !!json.data); }, json.data ? 3000 : 1500);
-      }
+      setData(json.data);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Erro ao carregar dashboard');
     } finally {
@@ -306,7 +296,6 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => { if (year) load(month, year); }, [month, year, load]);
-  useEffect(() => () => { if (pollRef.current) clearTimeout(pollRef.current); }, []);
 
   /* ─── KPI colors ─── */
   const completionColor = !data ? 'var(--text-primary)'
