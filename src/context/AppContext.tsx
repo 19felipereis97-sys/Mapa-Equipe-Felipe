@@ -2,6 +2,7 @@
 
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import type { Professional, Team, TaxRegime, Level, Obligation, AccountingYear } from '@/types/entities';
+import { apiFetch } from '@/lib/apiFetch';
 
 interface AppContextValue {
   sidebarCollapsed: boolean;
@@ -40,12 +41,22 @@ const SIDEBAR_KEY = 'mapa-equipe-sidebar-collapsed';
 
 async function fetchJson<T>(url: string): Promise<T[]> {
   try {
-    const res = await fetch(url);
+    const res = await apiFetch(url);
     const json = await res.json();
     return json.data ?? [];
   } catch {
     return [];
   }
+}
+
+// Cache dos dados cadastrais (dados pequenos e estáveis) para o boot ser
+// instantâneo: hidrata da última cópia salva e revalida em segundo plano.
+const CACHE_KEY = 'mapa:appdata:v1';
+function readCache(): Record<string, unknown[]> | null {
+  try { const raw = localStorage.getItem(CACHE_KEY); return raw ? JSON.parse(raw) : null; } catch { return null; }
+}
+function writeCache(data: Record<string, unknown[]>): void {
+  try { localStorage.setItem(CACHE_KEY, JSON.stringify(data)); } catch { /* quota/priv — ignora */ }
 }
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
@@ -79,8 +90,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const closeMobileNav = useCallback(() => setMobileNavOpen(false), []);
   const toggleMobileNav = useCallback(() => setMobileNavOpen((v) => !v), []);
 
-  const refreshAppData = useCallback(async () => {
-    setIsLoading(true);
+  const applyData = useCallback((d: {
+    professionals: Professional[]; teams: Team[]; taxRegimes: TaxRegime[];
+    levels: Level[]; obligations: Obligation[]; accountingYears: AccountingYear[];
+  }) => {
+    setProfessionals(d.professionals);
+    setTeams(d.teams);
+    setTaxRegimes(d.taxRegimes);
+    setLevels(d.levels);
+    setObligations(d.obligations);
+    setAccountingYears(d.accountingYears);
+    setActiveYearState(d.accountingYears.find((y) => y.active) ?? null);
+  }, []);
+
+  const refreshAppData = useCallback(async (showSpinner = true) => {
+    if (showSpinner) setIsLoading(true);
     try {
       const [profs, tms, taxes, lvls, obs, years] = await Promise.all([
         fetchJson<Professional>('/api/professionals'),
@@ -90,19 +114,31 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         fetchJson<Obligation>('/api/obligations'),
         fetchJson<AccountingYear>('/api/accounting-years'),
       ]);
-      setProfessionals(profs.filter((p) => p.active));
-      setTeams(tms.filter((t) => t.active));
-      setTaxRegimes(taxes.filter((t) => t.active));
-      setLevels(lvls.filter((l) => l.active));
-      setObligations(obs.filter((o) => o.active));
-      setAccountingYears(years.sort((a, b) => b.year - a.year));
-      setActiveYearState(years.find((y) => y.active) ?? null);
+      const processed = {
+        professionals: profs.filter((p) => p.active),
+        teams: tms.filter((t) => t.active),
+        taxRegimes: taxes.filter((t) => t.active),
+        levels: lvls.filter((l) => l.active),
+        obligations: obs.filter((o) => o.active),
+        accountingYears: years.sort((a, b) => b.year - a.year),
+      };
+      applyData(processed);
+      writeCache(processed as unknown as Record<string, unknown[]>);
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [applyData]);
 
-  useEffect(() => { refreshAppData(); }, [refreshAppData]);
+  useEffect(() => {
+    // Hidrata instantaneamente da última cópia salva; revalida sem spinner.
+    const cached = readCache();
+    if (cached) {
+      applyData(cached as unknown as Parameters<typeof applyData>[0]);
+      void refreshAppData(false);
+    } else {
+      void refreshAppData(true);
+    }
+  }, [applyData, refreshAppData]);
 
   return (
     <AppContext.Provider

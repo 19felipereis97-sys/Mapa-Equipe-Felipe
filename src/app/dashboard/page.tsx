@@ -6,6 +6,7 @@ import { useAppContext } from '@/context/AppContext';
 import { LoadingState } from '@/components/ui/LoadingState';
 import type { DashboardSummary, ObligationProgress, DelayAlert, DeadlineAlert } from '@/services/dashboardService';
 import { getCompetenceMonth } from '@/lib/utils';
+import { apiFetch } from '@/lib/apiFetch';
 
 const MONTH_NAMES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 const MONTH_ABBR  = ['JAN','FEV','MAR','ABR','MAI','JUN','JUL','AGO','SET','OUT','NOV','DEZ'];
@@ -282,15 +283,18 @@ export default function DashboardPage() {
     if (!showInitialLoading) setRefreshing(true);
     setError(null);
     try {
-      const res  = await fetch(`/api/dashboard?month=${m}&year=${y}`);
+      const res  = await apiFetch(`/api/dashboard?month=${m}&year=${y}`);
       const json = await res.json();
       if (!json.success) throw new Error(json.error);
-      setData(json.data);
-      // Snapshot em recálculo → re-consulta em segundo plano para pegar a versão
-      // atualizada assim que o IndicatorsAgent terminar (sem travar a tela).
+      // data pode vir null quando o snapshot ainda não foi calculado (cold-miss):
+      // o request enfileirou o cálculo e respondeu "pendente". Mantemos o loading
+      // e fazemos polling rápido até o IndicatorsAgent gravar o snapshot.
+      const pending = !!json.meta?.pending;
+      if (json.data) setData(json.data);
       if (pollRef.current) { clearTimeout(pollRef.current); pollRef.current = null; }
-      if (json.meta?.pending) {
-        pollRef.current = setTimeout(() => { void load(m, y, true); }, 3000);
+      if (pending) {
+        // sem dados ainda → mantém spinner; com dados → só revalida discreto
+        pollRef.current = setTimeout(() => { void load(m, y, !!json.data); }, json.data ? 3000 : 1500);
       }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Erro ao carregar dashboard');
@@ -356,7 +360,7 @@ export default function DashboardPage() {
         <p style={{ fontSize: 12, color: '#374151' }}>{MONTH_NAMES[month - 1]} / {year}</p>
       </div>
 
-      {loading ? (
+      {loading || (!data && !error) ? (
         <LoadingState message="Calculando indicadores..." />
       ) : error ? (
         <div style={{ padding: 24, textAlign: 'center', color: 'var(--color-danger)', background: 'var(--bg-card)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
