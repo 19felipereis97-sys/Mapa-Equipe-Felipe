@@ -51,9 +51,22 @@ async function fetchJson<T>(url: string): Promise<T[]> {
 
 // Cache dos dados cadastrais (dados pequenos e estáveis) para o boot ser
 // instantâneo: hidrata da última cópia salva e revalida em segundo plano.
-const CACHE_KEY = 'mapa:appdata:v1';
+// v2: v1 podia gravar um blob vazio/malformado (ex.: falha transitória de rede)
+// que travava o boot e deixava os selects vazios; v2 descarta qualquer cache antigo.
+const CACHE_KEY = 'mapa:appdata:v2';
+const CACHE_SHAPE = ['professionals', 'teams', 'taxRegimes', 'levels', 'obligations', 'accountingYears'] as const;
+
+// Só aceita um cache com a forma esperada (todas as chaves presentes e sendo arrays).
+// Qualquer coisa fora disso é ignorada para não travar/poluir o boot.
 function readCache(): Record<string, unknown[]> | null {
-  try { const raw = localStorage.getItem(CACHE_KEY); return raw ? JSON.parse(raw) : null; } catch { return null; }
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return null;
+    if (!CACHE_SHAPE.every((k) => Array.isArray(parsed[k]))) return null;
+    return parsed as Record<string, unknown[]>;
+  } catch { return null; }
 }
 function writeCache(data: Record<string, unknown[]>): void {
   try { localStorage.setItem(CACHE_KEY, JSON.stringify(data)); } catch { /* quota/priv — ignora */ }
@@ -131,13 +144,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     // Hidrata instantaneamente da última cópia salva; revalida sem spinner.
+    // A hidratação nunca pode impedir a revalidação: se o cache estiver
+    // malformado, aplicá-lo pode lançar erro — por isso fica isolado num
+    // try/catch e a revalidação (que é a fonte de verdade) roda em qualquer caso.
     const cached = readCache();
+    let hydrated = false;
     if (cached) {
-      applyData(cached as unknown as Parameters<typeof applyData>[0]);
-      void refreshAppData(false);
-    } else {
-      void refreshAppData(true);
+      try {
+        applyData(cached as unknown as Parameters<typeof applyData>[0]);
+        hydrated = true;
+      } catch { /* cache inutilizável — ignora e busca do servidor com spinner */ }
     }
+    void refreshAppData(!hydrated);
   }, [applyData, refreshAppData]);
 
   return (
